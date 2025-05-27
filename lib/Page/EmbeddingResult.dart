@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:wavemark_app_v1/Etc/bottom_nav.dart';
 
 class EmbeddingResultScreen extends StatefulWidget {
   final String audioUrl;
@@ -175,27 +176,13 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
                 children: [
                   ElevatedButton.icon(
                     onPressed: () {
-                      // TODO: Implement extraction navigation
+                      Navigator.pushNamed(
+                        context,
+                        '/extraction',
+                      );
                     },
                     icon: const Icon(Icons.skip_next, color: Colors.white),
                     label: const Text("To Extraction",
-                        style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFD1512D),
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12, horizontal: 20),
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pushNamedAndRemoveUntil(
-                          context, '/home', (route) => false);
-                    },
-                    icon: const Icon(
-                      Icons.home,
-                      color: Colors.white,
-                    ),
-                    label: const Text("Home",
                         style: TextStyle(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFD1512D),
@@ -209,6 +196,7 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
           ),
         ),
       ),
+      bottomNavigationBar: const BottomNavBar(currentRoute: '/extract'),
     );
   }
 }
