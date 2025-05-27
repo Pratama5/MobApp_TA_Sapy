@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:wavemark_app_v1/Etc/bottom_nav.dart';
-import 'package:wavemark_app_v1/Library/image_gallery_preview.dart';
+import 'package:wavemark_app_v1/History/HistoryGalleryPreview.dart';
 
 class HistoryImagePage extends StatefulWidget {
   const HistoryImagePage({super.key});
@@ -181,7 +181,7 @@ class _HistoryImagePageState extends State<HistoryImagePage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (_) => ImageGalleryPreview(
+                              builder: (_) => HistoryGalleryPreview(
                                 imageDataList: imageFiles,
                                 initialIndex: index,
                               ),

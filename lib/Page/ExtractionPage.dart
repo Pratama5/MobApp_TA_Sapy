@@ -162,12 +162,25 @@ class _ExtractionPageState extends State<ExtractionPage> {
 
     setState(() => _isExtracting = true); //
 
+    final userId = Supabase
+        .instance.client.auth.currentUser?.id; // Get the current user ID
+    if (userId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content:
+                Text("User not authenticated. Cannot perform extraction.")),
+      );
+      setState(() => _isExtracting = false);
+      return;
+    }
+
     final uri = Uri.parse(
         "http://192.168.18.10:8000/extract"); // Always change this when connection changes //
 
     final payload = {
       "audio_url": selectedAudioUrl, //
       "filename": selectedAudio, //
+      "uploaded_by": userId,
     };
 
     try {
