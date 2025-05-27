@@ -57,6 +57,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  flutter_launcher_icons: ^0.13.0
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
@@ -107,3 +108,31 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
+
+
+flutter_launcher_icons:
+  android: true             # Generate Android icons (true/false or "launcher_icon")
+  ios: false                 # Generate iOS icons (true/false)
+  image_path: "assets/icon/Icon.png" # IMPORTANT: Path to your main icon image
+  # Optional: For Android Adaptive Icons (Android 8.0+)
+  # adaptive_icon_background: "#FFFFFF" # Hex color for the background layer
+  # adaptive_icon_foreground: "assets/icon/app_icon_foreground.png" # Path to your foreground image (often the same as image_path or a version with transparency)
+  # Optional: For specific platform overrides if needed
+  # image_path_android: "assets/icon/android_specific_icon.png"
+  # image_path_ios: "assets/icon/ios_specific_icon.png"
+  # Optional: For web
+  # web:
+  #   generate: true
+  #   image_path: "assets/icon/app_icon.png"
+  #   background_color: "#0175C2"
+  #   theme_color: "#0175C2"
+  # Optional: For Windows
+  # windows:
+  #   generate: true
+  #   image_path: "assets/icon/app_icon.png"
+  #   icon_size: 48 # min:48, max:256, default: 48
+  # Optional: For MacOS
+  # macos:
+  #   generate: true
+  #   image_path: "assets/icon/app_icon.png"
+

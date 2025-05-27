@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dio/dio.dart';
+import 'package:wavemark_app_v1/Etc/bottom_nav.dart'; // For fetching image size
 
 class HistoryGalleryPreview extends StatefulWidget {
   final List<Map<String, dynamic>> imageDataList;
@@ -18,6 +19,60 @@ class HistoryGalleryPreview extends StatefulWidget {
   State<HistoryGalleryPreview> createState() => _HistoryGalleryPreviewState();
 }
 
+// Helper class to hold all details for the info dialog
+class FullImageInfo {
+  String filename;
+  String uploadedAt;
+  String size;
+  String sourceAudio;
+  String ber;
+  String? method;
+  int? subband;
+  int? bit;
+  double? alfass;
+  bool isLoadingDetails; // For the second stage of loading (embedding params)
+
+  FullImageInfo({
+    required this.filename,
+    required this.uploadedAt,
+    required this.size,
+    required this.sourceAudio,
+    required this.ber,
+    this.method,
+    this.subband,
+    this.bit,
+    this.alfass,
+    this.isLoadingDetails = false,
+  });
+
+  // Method to update and return a new instance, useful for ValueNotifier
+  FullImageInfo copyWith({
+    String? filename,
+    String? uploadedAt,
+    String? size,
+    String? sourceAudio,
+    String? ber,
+    String? method,
+    int? subband,
+    int? bit,
+    double? alfass,
+    bool? isLoadingDetails,
+  }) {
+    return FullImageInfo(
+      filename: filename ?? this.filename,
+      uploadedAt: uploadedAt ?? this.uploadedAt,
+      size: size ?? this.size,
+      sourceAudio: sourceAudio ?? this.sourceAudio,
+      ber: ber ?? this.ber,
+      method: method ?? this.method,
+      subband: subband ?? this.subband,
+      bit: bit ?? this.bit,
+      alfass: alfass ?? this.alfass,
+      isLoadingDetails: isLoadingDetails ?? this.isLoadingDetails,
+    );
+  }
+}
+
 class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
   final SupabaseClient supabase = Supabase.instance.client;
   late PageController _pageController;
@@ -30,9 +85,15 @@ class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
     _pageController = PageController(initialPage: currentIndex);
   }
 
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
   Future<int> fetchImageSizeFromUrl(String url) async {
     try {
-      final response = await Dio().head(url); // Using Dio for HEAD request
+      final response = await Dio().head(url);
       final contentLength = response.headers.value('content-length');
       return int.tryParse(contentLength ?? '') ?? 0;
     } catch (e) {
@@ -42,7 +103,7 @@ class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
   }
 
   String readableSize(int bytes) {
-    if (bytes <= 0) return "0 B"; // Handle zero or negative bytes
+    if (bytes <= 0) return "0 B";
     if (bytes >= 1024 * 1024) {
       return "${(bytes / (1024 * 1024)).toStringAsFixed(2)} MB";
     } else if (bytes >= 1024) {
@@ -51,89 +112,153 @@ class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
     return "$bytes B";
   }
 
-  void _showImageInfoDialog(Map<String, dynamic> image) async {
-    final filename = image['filename'] ?? 'Unknown';
-    final uploadedAtRaw = image['uploaded_at'];
-    final uploadedAt =
-        uploadedAtRaw != null && uploadedAtRaw.toString().isNotEmpty
-            ? DateFormat("MMM dd, yyyy – HH:mm") // Corrected DateFormat pattern
-                .format(DateTime.parse(uploadedAtRaw.toString()))
-            : 'Unknown';
-    // Show a loading indicator for size initially
-    String sizeString = "Loading...";
+  void _showImageInfoDialog(Map<String, dynamic> currentImageFromList) async {
+    // Initial data from the list (image_extracted table)
+    final initialInfo = FullImageInfo(
+      filename: currentImageFromList['filename'] ?? 'Unknown',
+      uploadedAt: (currentImageFromList['uploaded_at'] != null &&
+              currentImageFromList['uploaded_at'].toString().isNotEmpty)
+          ? DateFormat("MMM dd, yyyy – HH:mm") // Standardized date format
+              .format(DateTime.parse(
+                  currentImageFromList['uploaded_at'].toString()))
+          : 'Unknown',
+      size: "Calculating...", // Will be fetched
+      sourceAudio: currentImageFromList['source_audio'] as String? ?? 'N/A',
+      ber: currentImageFromList['ber']?.toString() ?? 'N/A',
+      isLoadingDetails: true, // Start by loading everything
+    );
+
+    final ValueNotifier<FullImageInfo> infoNotifier =
+        ValueNotifier(initialInfo);
+
+    // Show dialog immediately with initial info & loading states
     if (mounted) {
       showDialog(
         context: context,
-        barrierDismissible: false, // Prevent closing while loading size
-        builder: (context) => AlertDialog(
-          title: const Text("Image Info"),
-          content: StatefulBuilder(
-            // Use StatefulBuilder to update size later
-            builder: (BuildContext context, StateSetter setStateDialog) {
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("📛 Filename: $filename"),
-                  const SizedBox(height: 4),
-                  Text("🗓 Uploaded At: $uploadedAt"),
-                  const SizedBox(height: 4),
-                  Text("📦 Size: $sizeString"),
-                ],
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Close"),
-            ),
-          ],
+        builder: (context) => ValueListenableBuilder<FullImageInfo>(
+          valueListenable: infoNotifier,
+          builder: (context, info, child) {
+            return AlertDialog(
+              title: const Text("Image Details"),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text("📛 Filename: ${info.filename}"),
+                    const SizedBox(height: 4),
+                    Text("🗓 Uploaded At: ${info.uploadedAt}"),
+                    const SizedBox(height: 4),
+                    Text(
+                        "📦 Size: ${info.size}"), // Shows "Calculating..." or fetched size
+                    const SizedBox(height: 8),
+                    const Divider(),
+                    const SizedBox(height: 8),
+                    Text("🔊 Source Audio: ${info.sourceAudio}"),
+                    const SizedBox(height: 4),
+                    Text("📉 BER: ${info.ber}"),
+                    const SizedBox(height: 8),
+                    if (info.isLoadingDetails &&
+                        info.size ==
+                            "Calculating...") // Show general loading if size is still calculating
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Center(child: Text("Loading image info...")),
+                      )
+                    else if (info
+                        .isLoadingDetails) // Show loading for embedding params if size is done
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 8.0),
+                        child: Column(
+                          children: [
+                            Text("Embedding Parameters:",
+                                style: TextStyle(fontWeight: FontWeight.bold)),
+                            SizedBox(height: 4),
+                            Center(
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2)),
+                          ],
+                        ),
+                      )
+                    else ...[
+                      // Display embedding parameters if not loading
+                      const Text("Embedding Parameters:",
+                          style: TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 2),
+                      Text("  Metode: ${info.method ?? 'N/A'}"),
+                      Text(
+                          "  🔸 Sub-band: ${info.subband?.toString() ?? 'N/A'}"),
+                      Text("  🔸 Bit: ${info.bit?.toString() ?? 'N/A'}"),
+                      Text("  🔸 Alpha: ${info.alfass?.toString() ?? 'N/A'}"),
+                    ]
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("Close"),
+                ),
+              ],
+            );
+          },
         ),
       );
     }
 
-    final sizeBytes = await fetchImageSizeFromUrl(image['url']);
-    sizeString = readableSize(sizeBytes);
-
-    // If dialog is still open (mounted is a bit broad here, ideally check dialog state)
-    // For simplicity, we're re-opening dialog if it was closed or updating if we could track its state.
-    // A more robust way would involve passing a StateSetter to update the dialog content.
-    // For this example, we pop if it might be open, and then show updated.
-    if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
-      Navigator.of(context, rootNavigator: true).pop(); // Close loading dialog
-    }
+    // Asynchronously fetch size
+    final sizeBytes = await fetchImageSizeFromUrl(currentImageFromList['url']);
     if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text("Image Info"),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text("📛 Filename: $filename"),
-              const SizedBox(height: 4),
-              Text("🗓 Uploaded At: $uploadedAt"),
-              const SizedBox(height: 4),
-              Text("📦 Size: $sizeString"), // Show fetched size
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Close"),
-            ),
-          ],
-        ),
+      infoNotifier.value = infoNotifier.value.copyWith(
+        size: readableSize(sizeBytes),
+        // isLoadingDetails remains true until embedding params are also fetched or fail
       );
+    }
+
+    // Asynchronously fetch embedding details if sourceAudio is available
+    if (initialInfo.sourceAudio != 'N/A') {
+      try {
+        final audioWatermarkedData = await supabase
+            .from('audio_watermarked') // Make sure this table name is correct
+            .select('method, subband, bit, alfass')
+            .eq('filename', initialInfo.sourceAudio)
+            .maybeSingle();
+
+        if (mounted) {
+          if (audioWatermarkedData != null) {
+            infoNotifier.value = infoNotifier.value.copyWith(
+              method: audioWatermarkedData['method'] as String?,
+              subband: audioWatermarkedData['subband'] as int?,
+              bit: audioWatermarkedData['bit'] as int?,
+              alfass: (audioWatermarkedData['alfass'] as num?)
+                  ?.toDouble(), // Handle num from DB
+              isLoadingDetails: false,
+            );
+          } else {
+            // Embedding details not found for the source audio
+            infoNotifier.value = infoNotifier.value
+                .copyWith(isLoadingDetails: false, method: "N/A (not found)");
+          }
+        }
+      } catch (e) {
+        print("Error fetching embedding details: $e");
+        if (mounted) {
+          infoNotifier.value = infoNotifier.value
+              .copyWith(isLoadingDetails: false, method: "N/A (error)");
+        }
+      }
+    } else {
+      // No source audio to fetch embedding details from
+      if (mounted) {
+        infoNotifier.value =
+            infoNotifier.value.copyWith(isLoadingDetails: false);
+      }
     }
   }
 
   Future<void> _downloadImage(String url) async {
     try {
       if (!await launchUrlString(url, mode: LaunchMode.externalApplication)) {
-        // Suggest external app for download
         throw 'Could not launch $url';
       }
     } catch (e) {
@@ -167,26 +292,37 @@ class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
     if (confirm != true) return;
 
     try {
-      final filename = image['filename'];
-      // Assuming images are in 'watermarked/images/' path as per previous server.py context for extracted images
+      final filename = image['filename'] as String?;
+      if (filename == null) {
+        throw "Filename is null, cannot delete.";
+      }
+      // Corrected storage path and table name based on prior discussions
       await supabase.storage.from('watermarked').remove(['images/$filename']);
-      // Assuming the table is 'image_extracted' as per your previous problem description
       await supabase.from('image_extracted').delete().eq('filename', filename);
 
       if (mounted) {
+        final originalIndex = widget.imageDataList.indexOf(image);
         setState(() {
-          widget.imageDataList.removeAt(currentIndex);
+          widget.imageDataList.removeAt(originalIndex);
+          // If the current page was the one deleted, and it was the last one,
+          // we need to adjust currentIndex carefully.
           if (widget.imageDataList.isEmpty) {
-            Navigator.pop(context); // Pop if no images left
-          } else {
-            // Adjust currentIndex if it's now out of bounds
-            if (currentIndex >= widget.imageDataList.length) {
-              currentIndex = widget.imageDataList.length - 1;
-            }
-            // No need to jump if PageView handles current item update correctly,
-            // but explicitly setting might be needed if issues arise.
-            // _pageController.jumpToPage(currentIndex); // Might not be needed if PageView rebuilds correctly
+            // No items left, pop the gallery view
+            Navigator.pop(context);
+          } else if (currentIndex >= widget.imageDataList.length) {
+            // If current index is now out of bounds (was last item)
+            currentIndex = widget.imageDataList.length - 1;
+            _pageController.jumpToPage(currentIndex);
+          } else if (currentIndex == originalIndex &&
+              originalIndex < widget.imageDataList.length) {
+            // If we deleted the current page and it wasn't the last one,
+            // PageView might handle it, or we might need to nudge it.
+            // For simplicity, we're relying on PageView to show the new item at 'currentIndex'
+            // or the next item if current was deleted. A specific jump might be needed if PageView
+            // doesn't update smoothly. The onPageChanged will update currentIndex.
           }
+          // No explicit jump here, relying on PageView's itemCound change and
+          // onPageChanged to keep currentIndex in sync.
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Image deleted successfully.")),
@@ -202,20 +338,12 @@ class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
   }
 
   @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     if (widget.imageDataList.isEmpty) {
       return Scaffold(
-        // Added Scaffold for consistency
         backgroundColor: const Color(0xFFF5E8E4),
         appBar: AppBar(
-          // Added AppBar for back navigation
-          title: const Text("No Images"),
+          title: const Text("Gallery"), // More generic title
           backgroundColor: Colors.transparent,
           elevation: 0,
           leading: const CloseButton(color: Color(0xFF411530)),
@@ -228,15 +356,11 @@ class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
     }
 
     // Ensure currentIndex is valid before accessing imageDataList
-    // This can happen if an image is deleted and the list becomes shorter.
     final safeCurrentIndex =
         currentIndex.clamp(0, widget.imageDataList.length - 1);
-    if (widget.imageDataList.isEmpty || safeCurrentIndex < 0) {
-      // Double check after clamp if list became empty
-      return build(context); // Recurse to show "No images" screen
-    }
-    final currentImage = widget.imageDataList[safeCurrentIndex];
-    final currentImageUrl = currentImage['url'] as String?;
+    final currentImageForAppBar =
+        widget.imageDataList[safeCurrentIndex]; // Used for AppBar actions
+    final currentImageUrlForAppBar = currentImageForAppBar['url'] as String?;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5E8E4),
@@ -246,21 +370,21 @@ class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
         leading: const CloseButton(color: Color(0xFF411530)),
         actions: [
           IconButton(
-            onPressed: () => _showImageInfoDialog(currentImage),
+            onPressed: () => _showImageInfoDialog(currentImageForAppBar),
             icon: const Icon(Icons.info_outline, color: Color(0xFF411530)),
             tooltip: "Info",
           ),
           IconButton(
             onPressed: () {
-              if (currentImageUrl != null) {
-                _downloadImage(currentImageUrl);
+              if (currentImageUrlForAppBar != null) {
+                _downloadImage(currentImageUrlForAppBar);
               }
             },
             icon: const Icon(Icons.download, color: Color(0xFF411530)),
             tooltip: "Download",
           ),
           IconButton(
-            onPressed: () => _deleteImage(currentImage),
+            onPressed: () => _deleteImage(currentImageForAppBar),
             icon: const Icon(Icons.delete, color: Colors.red),
             tooltip: "Delete",
           ),
@@ -271,72 +395,97 @@ class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
         itemCount: widget.imageDataList.length,
         onPageChanged: (index) {
           if (mounted) {
-            // Ensure widget is still mounted before calling setState
             setState(() => currentIndex = index);
           }
         },
         itemBuilder: (context, index) {
-          final imageUrl = widget.imageDataList[index]['url'] as String?;
+          final imageItem = widget.imageDataList[index];
+          final imageUrl = imageItem['url'] as String?;
+          final sourceAudio = imageItem['source_audio'] as String? ?? 'N/A';
+          final ber = imageItem['ber']?.toString() ?? 'N/A';
+
           if (imageUrl == null) {
-            // Handle case where URL might be null for an item
             return Container(
-              width: 300,
-              height: 300,
-              color: Colors.grey[200],
+              // Fallback for null URL
+              width: 350, height: 350, color: Colors.grey[200],
               child: const Center(
-                child: Icon(
-                  Icons.error_outline,
-                  color: Colors.grey,
-                  size: 50,
-                ),
-              ),
+                  child:
+                      Icon(Icons.error_outline, color: Colors.grey, size: 50)),
             );
           }
-          return InteractiveViewer(
-            minScale: 0.5, // Optional: Set min scale
-            maxScale: 4.0, // Optional: Set max scale
-            child: Center(
-              child: Image.network(
-                imageUrl,
-                fit: BoxFit.contain,
-                // --- Applied changes for better display of small images ---
-                width: 300, // Fixed width for initial display
-                height: 300, // Fixed height for initial display
-                filterQuality:
-                    FilterQuality.none, // For clear pixelated scaling
-                loadingBuilder: (BuildContext context, Widget child,
-                    ImageChunkEvent? loadingProgress) {
-                  if (loadingProgress == null) return child; // Image is loaded
-                  return Center(
-                    child: CircularProgressIndicator(
-                      value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded /
-                              loadingProgress.expectedTotalBytes!
-                          : null,
-                      color: const Color(0xFFD1512D),
+
+          return Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Expanded(
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: Center(
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.contain,
+                      width: 350, // Fixed width for initial display
+                      height: 350, // Fixed height for initial display
+                      filterQuality:
+                          FilterQuality.none, // For clear pixelated scaling
+                      loadingBuilder: (BuildContext context, Widget child,
+                          ImageChunkEvent? loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                            color: const Color(0xFFD1512D),
+                          ),
+                        );
+                      },
+                      errorBuilder: (BuildContext context, Object error,
+                          StackTrace? stackTrace) {
+                        print(
+                            "❌ Error loading image in PageView: $imageUrl, Error: $error");
+                        return Container(
+                          width: 350,
+                          height: 350,
+                          color: Colors.grey[200],
+                          child: const Center(
+                              child: Icon(Icons.broken_image,
+                                  color: Colors.grey, size: 50)),
+                        );
+                      },
                     ),
-                  );
-                },
-                errorBuilder: (BuildContext context, Object error,
-                    StackTrace? stackTrace) {
-                  print(
-                      "❌ Error loading image in HistoryGalleryPreview: $imageUrl, Error: $error");
-                  return Container(
-                    width: 250, // Consistent size for error placeholder
-                    height: 250,
-                    color: Colors.grey[200],
-                    child: const Center(
-                      child: Icon(
-                        Icons.broken_image,
-                        color: Colors.grey,
-                        size: 50,
-                      ),
-                    ),
-                  );
-                },
-                // --- End of applied changes ---
+                  ),
+                ),
               ),
-            ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: 12.0, horizontal: 8.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize
+                      .min, // Important for Column inside Expanded parent
+                  children: [
+                    Text(
+                      "Audio File: $sourceAudio",
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[800]), // Adjusted style
+                      textAlign: TextAlign.center,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      "BER: $ber",
+                      style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[800]), // Adjusted style
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ],
           );
         },
       ),

@@ -24,20 +24,33 @@ class _HistoryImagePageState extends State<HistoryImagePage> {
   }
 
   Future<void> fetchImageFiles() async {
+    setState(() {
+      // Set loading true at the beginning
+      isLoading = true;
+    });
     try {
       final data = await supabase
           .from('image_extracted')
-          .select('filename, url,uploaded_at')
+          .select(
+              'filename, url, uploaded_at, source_audio, ber') // <<< MAKE SURE THIS LINE IS UPDATED
           .order('uploaded_at', ascending: false);
 
-      setState(() {
-        imageFiles = List<Map<String, dynamic>>.from(data);
-        isLoading = false;
-      });
+      // It's good to log what you actually receive from Supabase for debugging
+      print("Fetched data in HistoryImagePage: $data");
+
+      if (mounted) {
+        setState(() {
+          imageFiles = List<Map<String, dynamic>>.from(data);
+          isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Error loading images: $e')));
+      print("Error in fetchImageFiles (HistoryImagePage): $e");
+      if (mounted) {
+        setState(() => isLoading = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error loading images: $e')));
+      }
     }
   }
 
@@ -169,7 +182,7 @@ class _HistoryImagePageState extends State<HistoryImagePage> {
                       crossAxisCount: 2,
                       mainAxisSpacing: 20,
                       crossAxisSpacing: 16,
-                      childAspectRatio: 0.72,
+                      childAspectRatio: 1.0,
                     ),
                     itemBuilder: (context, index) {
                       final image = imageFiles[index];
@@ -195,10 +208,38 @@ class _HistoryImagePageState extends State<HistoryImagePage> {
                           child: Image.network(
                             url,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.broken_image, size: 40),
-                            ),
+                            filterQuality: FilterQuality
+                                .none, // Added for sharp pixelated scaling
+                            loadingBuilder: (BuildContext context, Widget child,
+                                ImageChunkEvent? loadingProgress) {
+                              if (loadingProgress == null) return child;
+                              return Center(
+                                child: CircularProgressIndicator(
+                                  value: loadingProgress.expectedTotalBytes !=
+                                          null
+                                      ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
+                                      : null,
+                                  strokeWidth:
+                                      2, // Make it a bit thinner for grid view
+                                  color: const Color(
+                                      0xFFD1512D), // Optional: Consistent color
+                                ),
+                              );
+                            },
+                            errorBuilder: (context, error, stackTrace) {
+                              // Corrected signature
+                              print(
+                                  "Error loading grid image $url: $error"); // Optional: log error
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[300],
+                                  // borderRadius is handled by ClipRRect if this container doesn't fill it
+                                ),
+                                child: const Icon(Icons.broken_image,
+                                    size: 40, color: Colors.grey),
+                              );
+                            },
                           ),
                         ),
                       );
