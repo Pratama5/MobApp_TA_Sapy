@@ -69,7 +69,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
   String getPublicAudioUrl(String fileName) {
     return Supabase.instance.client.storage
         .from(
-            'media') // Assuming this is the correct bucket for public audio URLs
+            'watermarked') // bucket for watermarked audios, ensure this is correct
         .getPublicUrl('audios/$fileName'); //
   }
 

@@ -3,7 +3,6 @@ import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:dio/dio.dart';
-import 'package:wavemark_app_v1/Etc/bottom_nav.dart'; // For fetching image size
 
 class HistoryGalleryPreview extends StatefulWidget {
   final List<Map<String, dynamic>> imageDataList;
@@ -321,7 +320,7 @@ class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
             // or the next item if current was deleted. A specific jump might be needed if PageView
             // doesn't update smoothly. The onPageChanged will update currentIndex.
           }
-          // No explicit jump here, relying on PageView's itemCound change and
+
           // onPageChanged to keep currentIndex in sync.
         });
         ScaffoldMessenger.of(context).showSnackBar(
@@ -445,7 +444,7 @@ class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
                       errorBuilder: (BuildContext context, Object error,
                           StackTrace? stackTrace) {
                         print(
-                            "❌ Error loading image in PageView: $imageUrl, Error: $error");
+                            "Error loading image in PageView: $imageUrl, Error: $error");
                         return Container(
                           width: 350,
                           height: 350,

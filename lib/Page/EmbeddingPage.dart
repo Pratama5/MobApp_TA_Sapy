@@ -23,10 +23,10 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
   final TextEditingController alfassController = TextEditingController();
 
   List<String> methodList = [
-    'SWT-DST-QR-SS',
-    'SWT-DCT-QR-SS',
     'DWT-DST-SVD-SS',
     'DWT-DCT-SVD-SS',
+    'SWT-DST-QR-SS',
+    'SWT-DCT-QR-SS',
   ];
   List<String> audioList = [];
   List<String> watermarkList = [];
@@ -37,6 +37,29 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
   void initState() {
     super.initState();
     loadDropdownData();
+  }
+
+  String _getMethodIdentifier(String? fullMethodName) {
+    if (fullMethodName == null) {
+      print(
+          "Warning: fullMethodName is null in _getMethodIdentifier. Defaulting to 'A'.");
+      return "A"; // Default or handle error appropriately
+    }
+
+    switch (fullMethodName) {
+      case 'DWT-DST-SVD-SS':
+        return "A";
+      case 'DWT-DCT-SVD-SS':
+        return "B";
+      case 'SWT-DST-QR-SS':
+        return "C";
+      case 'SWT-DCT-QR-SS':
+        return "D";
+      default:
+        print(
+            "Warning: Unknown method '$fullMethodName' selected in _getMethodIdentifier. Defaulting to identifier 'A'.");
+        return "A"; // Fallback identifier, or you could throw an error
+    }
   }
 
   Future<void> loadDropdownData() async {
@@ -84,22 +107,33 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
   Future<Map<String, dynamic>> sendToLocalServer({
     required String audioUrl,
     required String imageUrl,
-    required String method,
+    required String methodIdentifier,
     required int subband,
     required int bit,
     required double alfass,
   }) async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) {
+      // Handle case where user is not logged in, perhaps return an error or throw
+      return {
+        "status": "error",
+        "message": "User not authenticated.",
+      };
+    }
 
+    final String serverIp =
+        "192.168.18.10"; // Consider making this configurable
     try {
+      print(
+          "Sending to server: audio_url=$audioUrl, img_url=$imageUrl, method_identifier=$methodIdentifier, subband=$subband, bit=$bit, alfass=$alfass, uploaded_by=$userId");
       final response = await http.post(
         Uri.parse(
-            "http://192.168.18.10:8000/embed"), // Always change the IP wheb change connection
+            "http://$serverIp:8000/embed"), // Always change the IP wheb change connection
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           "audio_url": audioUrl,
           "img_url": imageUrl,
-          "method": method,
+          "method_identifier": methodIdentifier,
           "subband": subband,
           "bit": bit,
           "alfass": alfass,
@@ -107,9 +141,20 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
         }),
       );
 
-      final data = jsonDecode(response.body);
-      return data;
+      // It's good to check the status code before decoding
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        print("Server response: $data");
+        return data;
+      } else {
+        print("Server error: ${response.statusCode} - ${response.body}");
+        return {
+          "status": "error",
+          "message": "Server error: ${response.statusCode} - ${response.body}",
+        };
+      }
     } catch (e) {
+      print("Error connecting to server: $e");
       return {
         "status": "error",
         "message": "Failed to connect to server: $e",
@@ -145,8 +190,11 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
       return;
     }
 
-    selectedAlfass = double.tryParse(alfassController.text) ?? 0.05;
-
+    selectedAlfass = double.tryParse(alfassController.text.trim()) ?? 0.05;
+    if (alfassController.text.trim().isEmpty) {
+      // Explicitly set if empty
+      alfassController.text = selectedAlfass.toString();
+    }
     // Show confirmation dialog
     final proceed = await showDialog<bool>(
       context: context,
@@ -179,18 +227,21 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
+    // Get the method identifier ("A", "B", "C", or "D")
+    final String methodIdentifierToSend = _getMethodIdentifier(selectedMethod);
+
     // Send request to server
     final result = await sendToLocalServer(
       audioUrl: getPublicAudioUrl(selectedAudio!),
       imageUrl: getPublicImageUrl(selectedWatermark!),
-      method: selectedMethod!,
+      methodIdentifier: methodIdentifierToSend, // PASS THE IDENTIFIER HERE
       subband: selectedSubband!,
       bit: selectedBit!,
       alfass: selectedAlfass,
     );
 
     // Close loading
-    Navigator.of(context).pop();
+    if (mounted) Navigator.of(context).pop(); // Close loading dialog
 
     // Show result dialog
     showDialog(
@@ -207,13 +258,28 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
             TextButton(
               child: const Text('Next'),
               onPressed: () {
-                Navigator.pop(context); // Close dialog
+                if (!mounted) return;
+                Navigator.pop(context); // Close current dialog
+
+                String watermarkedAudioUrl = result['audio_url'] ?? '';
+                String keyUrlFromServer = result['key_url'] ?? '';
+                double? snrFromServer = (result['snr'] as num?)?.toDouble();
+
+                // --- USE THE FILENAME DIRECTLY FROM SERVER RESPONSE ---
+                String actualWatermarkedFilename =
+                    result['watermarked_filename'] ?? "Unknown Audio File";
+                print(
+                    "✅ Server returned watermarked_filename: $actualWatermarkedFilename");
+                // --- END ---
+
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => EmbeddingResultScreen(
-                      audioUrl: result['audio_url'],
-                      keyUrl: result['key_url'],
-                      snr: result['snr'],
+                      audioUrl: watermarkedAudioUrl,
+                      audioFilename:
+                          actualWatermarkedFilename, // <-- PASS THE DIRECT FILENAME HERE
+                      keyUrl: keyUrlFromServer,
+                      snr: snrFromServer,
                       method: selectedMethod!,
                       bit: selectedBit!,
                       subband: selectedSubband!,

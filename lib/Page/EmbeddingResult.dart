@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:wavemark_app_v1/Etc/bottom_nav.dart';
 
 class EmbeddingResultScreen extends StatefulWidget {
   final String audioUrl;
+  final String audioFilename; // <-- ADDED: To store and display the filename
   final String keyUrl;
   final String method;
   final int bit;
@@ -14,6 +14,7 @@ class EmbeddingResultScreen extends StatefulWidget {
   const EmbeddingResultScreen({
     Key? key,
     required this.audioUrl,
+    required this.audioFilename, // <-- ADDED: Make it required
     required this.keyUrl,
     required this.method,
     required this.bit,
@@ -40,7 +41,16 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
   }
 
   Future<void> _loadAudio() async {
+    setState(() {
+      // Ensure loading starts true
+      isLoadingAudio = true;
+    });
     try {
+      if (widget.audioUrl.isEmpty) {
+        print("Error: Audio URL is empty.");
+        if (mounted) setState(() => isLoadingAudio = false);
+        return;
+      }
       await _player.setUrl(widget.audioUrl);
 
       _player.durationStream.listen((d) {
@@ -57,13 +67,17 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
         if (!mounted) return;
         setState(() => isPlaying = state.playing);
       });
+      // Wait for player to be ready or have a duration before setting isLoadingAudio to false
+      await _player.load(); // Ensure player is ready
     } catch (e) {
-      print("Error loading audio: $e");
+      print("Error loading audio in EmbeddingResultScreen: $e");
+      // Optionally, show an error message to the user
     } finally {
-      if (!mounted) return;
-      setState(() {
-        isLoadingAudio = false;
-      });
+      if (mounted) {
+        setState(() {
+          isLoadingAudio = false;
+        });
+      }
     }
   }
 
@@ -85,7 +99,7 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(width: 8),
-          Expanded(child: Text(value)),
+          Expanded(child: Text(value, overflow: TextOverflow.ellipsis)),
         ],
       ),
     );
@@ -101,93 +115,195 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Embedding Result")),
+      // Using transparent AppBar with custom back button to match other screens
+      backgroundColor:
+          const Color(0xFFF5E8E4), // Assuming this is your desired background
+      appBar: AppBar(
+        title: const Text(
+          "Embedding Result",
+          style: TextStyle(
+            color: Color(0xFF411530), // Matching title color from other pages
+            fontWeight: FontWeight.bold,
+            fontSize: 22,
+          ),
+        ),
+        backgroundColor: Colors.transparent, // Make AppBar transparent
+        elevation: 0, // No shadow
+        leading: const BackButton(
+            color: Color(0xFFD1512D)), // Custom back button color
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Container(
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: const Color(0xFFF5E8E4),
+            color: Colors
+                .white, // Changed to white for better contrast with F5E8E4 background
             borderRadius: BorderRadius.circular(15),
-            boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
+            boxShadow: const [
+              BoxShadow(
+                  blurRadius: 6, color: Colors.black26, offset: Offset(0, 2))
+            ], // Slightly adjusted shadow
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
                 "Watermarked Audio Preview",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF411530)),
               ),
+              const SizedBox(height: 4), // Reduced space
+              // --- ADDED: Displaying the audio filename ---
+              Text(
+                widget.audioFilename,
+                style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontStyle: FontStyle.italic),
+                overflow: TextOverflow.ellipsis,
+              ),
+              // --- End of added filename ---
               const SizedBox(height: 10),
               isLoadingAudio
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const Center(
+                      child: Padding(
+                      padding: EdgeInsets.symmetric(
+                          vertical: 30.0), // Add some padding
+                      child:
+                          CircularProgressIndicator(color: Color(0xFFD1512D)),
+                    ))
                   : Column(
                       children: [
-                        Row(
-                          children: [
-                            Text(_formatDuration(_position)),
-                            Expanded(
-                              child: Slider(
-                                value: _position.inSeconds.toDouble(),
-                                max: _duration.inSeconds.toDouble() > 0
-                                    ? _duration.inSeconds.toDouble()
-                                    : 1,
-                                onChanged: (value) {
-                                  _player
-                                      .seek(Duration(seconds: value.toInt()));
-                                },
-                                activeColor: const Color(0xFFD1512D),
-                                inactiveColor: Colors.grey[300],
+                        if (_player.duration != null) ...[
+                          // Only show player if duration is available
+                          Row(
+                            children: [
+                              Text(_formatDuration(_position)),
+                              Expanded(
+                                child: Slider(
+                                  value: _position.inMilliseconds
+                                      .toDouble()
+                                      .clamp(0.0,
+                                          _duration.inMilliseconds.toDouble()),
+                                  max: _duration.inMilliseconds.toDouble() > 0
+                                      ? _duration.inMilliseconds.toDouble()
+                                      : 1.0, // Ensure max is not 0
+                                  onChanged: (value) {
+                                    _player.seek(
+                                        Duration(milliseconds: value.toInt()));
+                                  },
+                                  activeColor: const Color(0xFFD1512D),
+                                  inactiveColor: Colors.grey[300],
+                                ),
                               ),
-                            ),
-                            Text(_formatDuration(_duration)),
-                          ],
-                        ),
-                        IconButton(
-                          icon: Icon(
-                              isPlaying
-                                  ? Icons.pause_circle
-                                  : Icons.play_circle,
-                              size: 48,
-                              color: const Color(0xFFD1512D)),
-                          onPressed: () async {
-                            isPlaying
-                                ? await _player.pause()
-                                : await _player.play();
-                          },
-                        ),
+                              Text(_formatDuration(_duration)),
+                            ],
+                          ),
+                          IconButton(
+                            icon: Icon(
+                                isPlaying
+                                    ? Icons.pause_circle_filled // Changed icon
+                                    : Icons.play_circle_filled, // Changed icon
+                                size: 52, // Slightly larger
+                                color: const Color(0xFFD1512D)),
+                            onPressed: () async {
+                              if (_player.processingState ==
+                                  ProcessingState.completed) {
+                                await _player.seek(Duration.zero);
+                                await _player.play();
+                              } else if (isPlaying) {
+                                await _player.pause();
+                              } else {
+                                await _player.play();
+                              }
+                            },
+                          ),
+                        ] else
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 30.0),
+                            child: Text(
+                                "Audio preview not available or failed to load.",
+                                textAlign: TextAlign.center),
+                          )
                       ],
                     ),
               const SizedBox(height: 20),
               const Text(
                 "Embedding Details",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF411530)),
               ),
               const SizedBox(height: 10),
               _buildInfoRow("Method", widget.method),
               _buildInfoRow("Bit", widget.bit.toString()),
               _buildInfoRow("Subband", widget.subband.toString()),
-              _buildInfoRow("Alfass", widget.alfass.toString()),
               _buildInfoRow(
-                  "SNR", widget.snr != null ? "${widget.snr} dB" : "N/A"),
+                  "Alfass", widget.alfass.toStringAsFixed(3)), // Format alfass
+              _buildInfoRow(
+                  "SNR",
+                  widget.snr != null
+                      ? "${widget.snr?.toStringAsFixed(2)} dB"
+                      : "N/A"), // Format SNR
               const SizedBox(height: 30),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.pushNamed(
-                        context,
-                        '/extraction',
-                      );
-                    },
-                    icon: const Icon(Icons.skip_next, color: Colors.white),
-                    label: const Text("To Extraction",
-                        style: TextStyle(color: Colors.white)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFD1512D),
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12, horizontal: 20),
+                  Expanded(
+                    // Make button take more width if needed, or use MainAxisAlignment.center for single button
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pushNamed(
+                          context,
+                          '/extraction', // Assuming this is a defined route
+                        );
+                      },
+                      icon: const Icon(Icons.find_in_page_outlined,
+                          color: Colors.white), // Changed icon
+                      label: const Text("To Extraction",
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFD1512D),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 14, horizontal: 20), // Adjusted padding
+                          shape: RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.circular(10)) // Added shape
+                          ),
+                    ),
+                  ),
+                  // The "Home" button was in one version you provided, I'll keep it for now.
+                  // If you only want one button, remove the SizedBox and the second ElevatedButton.
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pushNamedAndRemoveUntil(context, '/',
+                            (route) => false); // Navigate to Home ('/')
+                      },
+                      icon: const Icon(
+                        Icons.home_outlined, // Changed icon
+                        color: Colors.white,
+                      ),
+                      label: const Text("Home",
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold)),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Color(
+                              0xFF5E2A4D), // Different color for distinction
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 14, horizontal: 20), // Adjusted padding
+                          shape: RoundedRectangleBorder(
+                              borderRadius:
+                                  BorderRadius.circular(10)) // Added shape
+                          ),
                     ),
                   ),
                 ],
@@ -196,7 +312,6 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: const BottomNavBar(currentRoute: '/extract'),
     );
   }
 }
