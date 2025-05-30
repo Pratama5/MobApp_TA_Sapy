@@ -26,7 +26,7 @@ class _LibraryImagePageState extends State<LibraryImagePage> {
     try {
       final data = await supabase
           .from('image_watermarks')
-          .select('filename, url,uploaded_at')
+          .select('filename, url,uploaded_at, is_public')
           .order('uploaded_at', ascending: false);
 
       setState(() {
@@ -52,6 +52,15 @@ class _LibraryImagePageState extends State<LibraryImagePage> {
   }
 
   Future<void> deleteImage(String filename, Map<String, dynamic> image) async {
+    // Check if the audio is public
+    if (image['is_public'] == true) {
+      // If public, show a message and do nothing else
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("This is a Public audio and can't be deleted.")),
+      );
+      return; // Stop the function here
+    }
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -72,7 +81,7 @@ class _LibraryImagePageState extends State<LibraryImagePage> {
 
     try {
       await supabase.storage.from('media').remove(['images/$filename']);
-      await supabase.from('image_files').delete().eq('filename', filename);
+      await supabase.from('image_watermarks').delete().eq('filename', filename);
 
       setState(() => imageFiles.remove(image));
 
@@ -162,16 +171,25 @@ class _LibraryImagePageState extends State<LibraryImagePage> {
                       final filename = image['filename'];
 
                       return GestureDetector(
-                        onTap: () {
-                          Navigator.push(
+                        onTap: () async {
+                          final result = await Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (_) => ImageGalleryPreview(
-                                imageDataList: imageFiles,
+                                imageDataList:
+                                    List<Map<String, dynamic>>.from(imageFiles),
                                 initialIndex: index,
                               ),
                             ),
                           );
+                          // If the result is true, it means a deletion happened.
+                          if (result == true && mounted) {
+                            setState(() {
+                              isLoading =
+                                  true; // Show loading indicator while refetching
+                            });
+                            fetchImageFiles(); // Refresh the list!
+                          }
                         },
                         onLongPress: () =>
                             showImageOptions(context, url, filename, image),

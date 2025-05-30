@@ -184,7 +184,7 @@ class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
                       const Text("Embedding Parameters:",
                           style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 2),
-                      Text("  Metode: ${info.method ?? 'N/A'}"),
+                      Text(" 🔸 Metode: ${info.method ?? 'N/A'}"),
                       Text(
                           "  🔸 Sub-band: ${info.subband?.toString() ?? 'N/A'}"),
                       Text("  🔸 Bit: ${info.bit?.toString() ?? 'N/A'}"),
@@ -466,7 +466,7 @@ class _HistoryGalleryPreviewState extends State<HistoryGalleryPreview> {
                       .min, // Important for Column inside Expanded parent
                   children: [
                     Text(
-                      "Audio File: $sourceAudio",
+                      "Audio Host: $sourceAudio",
                       style: TextStyle(
                           fontSize: 13,
                           color: Colors.grey[800]), // Adjusted style

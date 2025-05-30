@@ -174,8 +174,10 @@ class _ExtractionPageState extends State<ExtractionPage> {
       return;
     }
 
-    final uri = Uri.parse(
-        "http://192.168.18.10:8000/extract"); // Always change this when connection changes //
+    final String serverIp =
+        "192.168.18.131"; // Always change this when connection changes //
+
+    final uri = Uri.parse("http://$serverIp:8000/extract");
 
     final payload = {
       "audio_url": selectedAudioUrl, //

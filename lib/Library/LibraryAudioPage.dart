@@ -38,7 +38,7 @@ class _LibraryAudioPageState extends State<LibraryAudioPage> {
     try {
       final response = await supabase
           .from('audio_files')
-          .select('filename, url, uploaded_at')
+          .select('filename, url, uploaded_at, is_public')
           .order('uploaded_at', ascending: false);
 
       setState(() {
@@ -116,6 +116,16 @@ class _LibraryAudioPageState extends State<LibraryAudioPage> {
   }
 
   void _confirmDelete(String filename, Map<String, dynamic> audio) async {
+    // Check if the audio is public
+    if (audio['is_public'] == true) {
+      // If public, show a message and do nothing else
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("This is a Public audio and can't be deleted.")),
+      );
+      return; // Stop the function here
+    }
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(

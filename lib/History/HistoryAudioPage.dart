@@ -39,7 +39,7 @@ class _HistoryAudioPageState extends State<HistoryAudioPage> {
     try {
       final response = await supabase
           .from('audio_watermarked')
-          .select('filename, url, uploaded_at')
+          .select('filename, url, uploaded_at, key_url')
           .order('uploaded_at', ascending: false);
 
       setState(() {
@@ -137,15 +137,44 @@ class _HistoryAudioPageState extends State<HistoryAudioPage> {
     if (confirm != true) return;
 
     try {
-      await supabase.storage.from('watermarked').remove(['audios/$filename']);
+      // 1. Get the key_url from the data fetched from the database
+      final keyUrl = audio['key_url'] as String?;
+
+      // Safety check: ensure the URL exists
+      if (keyUrl == null || keyUrl.isEmpty) {
+        throw Exception('Key file URL not found in the database record.');
+      }
+
+      // 2. Reliably extract the key's filename from the full URL
+      final keyFilename = Uri.parse(keyUrl).pathSegments.last;
+
+      // 3. Define the paths for both files
+      final audioPath = 'audios/$filename';
+      final keyPath = 'key/$keyFilename';
+
+      // 4. Delete the database record first
       await supabase
           .from('audio_watermarked')
           .delete()
           .eq('filename', filename);
-      setState(() => audioFiles.remove(audio));
+
+      // 5. Remove both files from storage in one call
+      await supabase.storage.from('watermarked').remove([audioPath, keyPath]);
+
+      if (mounted) {
+        setState(() => audioFiles.remove(audio));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text("Audio and key file deleted successfully.")),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text("Delete failed: $e")));
+      print("---! DELETE FAILED !---");
+      print("Exact error: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text("Delete failed: $e")));
+      }
     }
   }
 
@@ -158,6 +187,7 @@ class _HistoryAudioPageState extends State<HistoryAudioPage> {
     return "$bytes B";
   }
 
+  // MODIFIED: This function now fetches embedding parameters.
   void showAudioInfoDialog(Map<String, dynamic> audio) {
     final filename = audio['filename'] ?? 'Unknown';
     final rawDate = audio['uploaded_at'];
@@ -165,6 +195,21 @@ class _HistoryAudioPageState extends State<HistoryAudioPage> {
         ? DateFormat("MMM dd, yyyy – HH:mm")
             .format(DateTime.parse(rawDate).toLocal())
         : 'Unknown';
+
+    // Future to fetch the embedding parameters from Supabase
+    Future<Map<String, dynamic>?> fetchEmbeddingParams() async {
+      try {
+        final response = await supabase
+            .from('audio_watermarked')
+            .select('method, subband, bit, alfass, snr')
+            .eq('filename', filename)
+            .maybeSingle();
+        return response;
+      } catch (e) {
+        print('Error fetching embedding params: $e');
+        return null; // Return null on error
+      }
+    }
 
     showDialog(
       context: context,
@@ -178,7 +223,53 @@ class _HistoryAudioPageState extends State<HistoryAudioPage> {
             const SizedBox(height: 4),
             Text("🗓 Uploaded At: $uploadedAt"),
             const SizedBox(height: 4),
-            Text("📦 Size: ${readableSize(fileSizes[filename] ?? 0)}")
+            Text("📦 Size: ${readableSize(fileSizes[filename] ?? 0)}"),
+            const SizedBox(height: 8),
+            const Divider(),
+            const SizedBox(height: 8),
+            // Use FutureBuilder to handle the async call and display data
+            FutureBuilder<Map<String, dynamic>?>(
+              future: fetchEmbeddingParams(),
+              builder: (context, snapshot) {
+                // Show a loader while waiting for the data
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                // Show an error message if something went wrong
+                if (snapshot.hasError ||
+                    !snapshot.hasData ||
+                    snapshot.data == null) {
+                  return const Text(
+                    "Could not load embedding parameters.",
+                    style: TextStyle(color: Colors.red),
+                  );
+                }
+
+                final params = snapshot.data!;
+                final method = params['method'] ?? 'N/A';
+                final subband = params['subband']?.toString() ?? 'N/A';
+                final bit = params['bit']?.toString() ?? 'N/A';
+                final alpha = params['alfass']?.toString() ?? 'N/A';
+                final snr =
+                    (params['snr'] as num?)?.toStringAsFixed(2) ?? 'N/A';
+
+                // Display the parameters once loaded
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text("Embedding Parameters:",
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 2),
+                    Text("  🔸 Metode: $method"),
+                    Text("  🔸 Sub-band: $subband"),
+                    Text("  🔸 Bit: $bit"),
+                    Text("  🔸 Alpha: $alpha"),
+                    Text("  📈 SNR: $snr dB"),
+                  ],
+                );
+              },
+            ),
           ],
         ),
         actions: [
@@ -307,7 +398,8 @@ class _HistoryAudioPageState extends State<HistoryAudioPage> {
                       } else if (value == 'delete') {
                         _confirmDelete(filename, audio);
                       } else if (value == 'info') {
-                        showAudioInfoDialog(audio);
+                        showAudioInfoDialog(
+                            audio); // This now shows the new dialog
                       }
                     },
                     itemBuilder: (context) => [

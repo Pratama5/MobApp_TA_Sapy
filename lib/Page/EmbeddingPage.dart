@@ -112,24 +112,29 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
     required int bit,
     required double alfass,
   }) async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) {
-      // Handle case where user is not logged in, perhaps return an error or throw
+    //  Get the entire user session to access the token
+    final session = Supabase.instance.client.auth.currentSession;
+    if (session == null) {
       return {
         "status": "error",
         "message": "User not authenticated.",
       };
     }
+    final accessToken = session.accessToken;
+    final userId = session.user.id;
 
     final String serverIp =
-        "192.168.18.10"; // Consider making this configurable
+        "192.168.18.131"; // Consider making this configurable
     try {
       print(
           "Sending to server: audio_url=$audioUrl, img_url=$imageUrl, method_identifier=$methodIdentifier, subband=$subband, bit=$bit, alfass=$alfass, uploaded_by=$userId");
       final response = await http.post(
         Uri.parse(
             "http://$serverIp:8000/embed"), // Always change the IP wheb change connection
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $accessToken',
+        },
         body: jsonEncode({
           "audio_url": audioUrl,
           "img_url": imageUrl,

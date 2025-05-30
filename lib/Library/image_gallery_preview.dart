@@ -22,6 +22,7 @@ class _ImageGalleryPreviewState extends State<ImageGalleryPreview> {
   final SupabaseClient supabase = Supabase.instance.client;
   late PageController _pageController;
   late int currentIndex;
+  bool _didChange = false; // <-- ADD THIS VARIABLE
 
   @override
   void initState() {
@@ -99,6 +100,15 @@ class _ImageGalleryPreviewState extends State<ImageGalleryPreview> {
   }
 
   Future<void> _deleteImage(Map<String, dynamic> image) async {
+    // Check if the audio is public
+    if (image['is_public'] == true) {
+      // If public, show a message and do nothing else
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text("This is a Public audio and can't be deleted.")),
+      );
+      return; // Stop the function here
+    }
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -118,23 +128,21 @@ class _ImageGalleryPreviewState extends State<ImageGalleryPreview> {
     if (confirm != true) return;
 
     try {
-      final filename = image['filename'];
-      await supabase.storage.from('media').remove(['images/$filename']);
-      await supabase.from('image_files').delete().eq('filename', filename);
+      final filename = image['filename'] as String;
+      await supabase.storage
+          .from('watermarked')
+          .remove(['images/$filename']); // Or your correct bucket/path
+      await supabase.from('image_watermarks').delete().eq('filename', filename);
 
-      setState(() {
-        widget.imageDataList.removeAt(currentIndex);
-        if (widget.imageDataList.isEmpty) {
-          Navigator.pop(context);
-        } else {
-          currentIndex = currentIndex.clamp(0, widget.imageDataList.length - 1);
-          _pageController.jumpToPage(currentIndex);
-        }
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Image deleted successfully.")),
-      );
+      if (mounted) {
+        setState(() {
+          widget.imageDataList.remove(image);
+          _didChange = true;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Image deleted successfully.")),
+        );
+      }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Delete failed: $e")),
@@ -152,44 +160,59 @@ class _ImageGalleryPreviewState extends State<ImageGalleryPreview> {
         ),
       );
     }
+    return WillPopScope(
+      onWillPop: () async {
+        Navigator.pop(context, _didChange);
+        return false; // Prevent default back navigation
+      },
+      child: Builder(
+        builder: (context) {
+          final currentImage = widget.imageDataList[currentIndex];
+          final imageUrl = currentImage['url'];
 
-    final currentImage = widget.imageDataList[currentIndex];
-    final imageUrl = currentImage['url'];
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF5E8E4),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: const CloseButton(color: const Color(0xFF411530)),
-        actions: [
-          IconButton(
-            onPressed: () => _showImageInfoDialog(currentImage),
-            icon:
-                const Icon(Icons.info_outline, color: const Color(0xFF411530)),
-            tooltip: "Info",
-          ),
-          IconButton(
-            onPressed: () => _downloadImage(imageUrl),
-            icon: const Icon(Icons.download, color: const Color(0xFF411530)),
-            tooltip: "Download",
-          ),
-          IconButton(
-            onPressed: () => _deleteImage(currentImage),
-            icon: const Icon(Icons.delete, color: Colors.red),
-            tooltip: "Delete",
-          ),
-        ],
-      ),
-      body: PageView.builder(
-        controller: _pageController,
-        itemCount: widget.imageDataList.length,
-        onPageChanged: (index) => setState(() => currentIndex = index),
-        itemBuilder: (context, index) {
-          final imageUrl = widget.imageDataList[index]['url'];
-          return InteractiveViewer(
-            child: Center(
-              child: Image.network(imageUrl, fit: BoxFit.contain),
+          return Scaffold(
+            backgroundColor: const Color(0xFFF5E8E4),
+            appBar: AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: CloseButton(
+                color: const Color(0xFF411530),
+                onPressed: () {
+                  Navigator.pop(context, _didChange);
+                },
+              ),
+              actions: [
+                IconButton(
+                  onPressed: () => _showImageInfoDialog(currentImage),
+                  icon: const Icon(Icons.info_outline,
+                      color: const Color(0xFF411530)),
+                  tooltip: "Info",
+                ),
+                IconButton(
+                  onPressed: () => _downloadImage(imageUrl),
+                  icon: const Icon(Icons.download,
+                      color: const Color(0xFF411530)),
+                  tooltip: "Download",
+                ),
+                IconButton(
+                  onPressed: () => _deleteImage(currentImage),
+                  icon: const Icon(Icons.delete, color: Colors.red),
+                  tooltip: "Delete",
+                ),
+              ],
+            ),
+            body: PageView.builder(
+              controller: _pageController,
+              itemCount: widget.imageDataList.length,
+              onPageChanged: (index) => setState(() => currentIndex = index),
+              itemBuilder: (context, index) {
+                final imageUrl = widget.imageDataList[index]['url'];
+                return InteractiveViewer(
+                  child: Center(
+                    child: Image.network(imageUrl, fit: BoxFit.contain),
+                  ),
+                );
+              },
             ),
           );
         },
