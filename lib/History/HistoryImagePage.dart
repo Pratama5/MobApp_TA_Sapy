@@ -171,7 +171,7 @@ class _HistoryImagePageState extends State<HistoryImagePage> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : imageFiles.isEmpty
-              ? const Center(child: Text("No images found."))
+              ? _buildEmptyState()
               : Padding(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -247,6 +247,61 @@ class _HistoryImagePageState extends State<HistoryImagePage> {
                   ),
                 ),
       bottomNavigationBar: const BottomNavBar(currentRoute: '/history'),
+    );
+  }
+  // ... inside _HistoryImagePageState class ...
+
+  Widget _buildEmptyState() {
+    // Define colors and styles based on your app's theme
+    // (using similar styling to what we did for HistoryAudioPage)
+    final Color iconColor = Colors.grey.shade400;
+    final Color primaryTextColor = Colors.grey.shade700;
+    final Color secondaryTextColor = Colors.grey.shade500;
+    final double iconSize = 70.0;
+    final double titleFontSize = 18.0;
+    final double subtitleFontSize = 14.0;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(Icons.image_search_outlined,
+                size: iconSize, color: iconColor), // Icon for images
+            const SizedBox(height: 20),
+            Text(
+              "No Extracted Images Yet",
+              style: TextStyle(
+                  fontSize: titleFontSize,
+                  fontWeight: FontWeight.w600,
+                  color: primaryTextColor),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Images you extract from audio will appear here.\nTry extracting a watermark first!",
+              style: TextStyle(
+                  fontSize: subtitleFontSize, color: secondaryTextColor),
+              textAlign: TextAlign.center,
+            ),
+            // Optional: Add a button to navigate to the extraction page
+            // const SizedBox(height: 20),
+            // ElevatedButton.icon(
+            //   onPressed: () {
+            //     Navigator.pushNamed(context, '/extraction'); // Assuming you have this route
+            //   },
+            //   icon: const Icon(Icons.filter_center_focus_outlined), // Or a different relevant icon
+            //   label: const Text("Extract New Image"),
+            //   style: ElevatedButton.styleFrom(
+            //       backgroundColor: const Color(0xFFD1512D), // Your accent color
+            //       foregroundColor: Colors.white,
+            //   ),
+            // )
+          ],
+        ),
+      ),
     );
   }
 }

@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:wavemark_app_v1/Etc/SettingsPage.dart';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:async';
+
+// Import your AppSettings class
+import '../etc/app_settings.dart'; // Adjust the path if needed
 
 import 'package:wavemark_app_v1/Page/EmbeddingResult.dart';
 
@@ -18,9 +24,11 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
   int? selectedBit;
   String? selectedAudio;
   String? selectedWatermark;
-  double selectedAlfass = 0.05;
+  double selectedAlfass = 0.05; // Default value
 
-  final TextEditingController alfassController = TextEditingController();
+  // Initialize with the default value or an empty string if you prefer
+  final TextEditingController alfassController =
+      TextEditingController(text: "0.05");
 
   List<String> methodList = [
     'DWT-DST-SVD-SS',
@@ -37,13 +45,14 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
   void initState() {
     super.initState();
     loadDropdownData();
+    // alfassController.text = selectedAlfass.toString(); // Set initial text for alfass
   }
 
   String _getMethodIdentifier(String? fullMethodName) {
     if (fullMethodName == null) {
       print(
           "Warning: fullMethodName is null in _getMethodIdentifier. Defaulting to 'A'.");
-      return "A"; // Default or handle error appropriately
+      return "A";
     }
 
     switch (fullMethodName) {
@@ -58,21 +67,26 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
       default:
         print(
             "Warning: Unknown method '$fullMethodName' selected in _getMethodIdentifier. Defaulting to identifier 'A'.");
-        return "A"; // Fallback identifier, or you could throw an error
+        return "A";
     }
   }
 
   Future<void> loadDropdownData() async {
+    // ... (your existing loadDropdownData method is fine)
     final audios = await fetchFileNamesFromSupabase('audios');
     final images = await fetchFileNamesFromSupabase('images');
 
-    setState(() {
-      audioList = audios;
-      watermarkList = images;
-    });
+    if (mounted) {
+      // Good practice to check if mounted before calling setState
+      setState(() {
+        audioList = audios;
+        watermarkList = images;
+      });
+    }
   }
 
   Future<List<String>> fetchFileNamesFromSupabase(String path) async {
+    // ... (your existing fetchFileNamesFromSupabase method is fine)
     final response =
         await Supabase.instance.client.storage.from('media').list(path: path);
 
@@ -91,6 +105,7 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
   }
 
   String getPublicImageUrl(String fileName) {
+    // ... (your existing getPublicImageUrl method is fine)
     final url = Supabase.instance.client.storage
         .from('media')
         .getPublicUrl('images/$fileName');
@@ -98,12 +113,14 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
   }
 
   String getPublicAudioUrl(String fileName) {
+    // ... (your existing getPublicAudioUrl method is fine)
     final url = Supabase.instance.client.storage
         .from('media')
         .getPublicUrl('audios/$fileName');
     return url;
   }
 
+  // Updated sendToLocalServer function
   Future<Map<String, dynamic>> sendToLocalServer({
     required String audioUrl,
     required String imageUrl,
@@ -112,7 +129,6 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
     required int bit,
     required double alfass,
   }) async {
-    //  Get the entire user session to access the token
     final session = Supabase.instance.client.auth.currentSession;
     if (session == null) {
       return {
@@ -123,14 +139,15 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
     final accessToken = session.accessToken;
     final userId = session.user.id;
 
-    final String serverIp =
-        "192.168.18.131"; // Consider making this configurable
+    // --- FETCH SERVER IP FROM SETTINGS ---
+    final String serverIp = await AppSettings.getServerIp();
+    // --- END FETCH SERVER IP ---
+
     try {
       print(
-          "Sending to server: audio_url=$audioUrl, img_url=$imageUrl, method_identifier=$methodIdentifier, subband=$subband, bit=$bit, alfass=$alfass, uploaded_by=$userId");
+          "Sending to server (http://$serverIp:8000): audio_url=$audioUrl, img_url=$imageUrl, method_identifier=$methodIdentifier, subband=$subband, bit=$bit, alfass=$alfass, uploaded_by=$userId");
       final response = await http.post(
-        Uri.parse(
-            "http://$serverIp:8000/embed"), // Always change the IP wheb change connection
+        Uri.parse("http://$serverIp:8000/embed"), // IP is now dynamic
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -145,38 +162,90 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
           "uploaded_by": userId,
         }),
       );
-
-      // It's good to check the status code before decoding
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         print("Server response: $data");
-        return data;
+        return data; // Success case should ideally also have a "status": "success" from server
       } else {
+        String errorType =
+            "server_error"; // Default for server-side HTTP errors
+        String detailedMessage =
+            "Server responded with error ${response.statusCode}.";
+        if (response.body.isNotEmpty) {
+          detailedMessage += " Details: ${response.body}";
+        }
+
+        // Specific HTTP errors that might relate to wrong IP/server config
+        if (response.statusCode == 404) {
+          // Not Found
+          errorType = "connection_error";
+          detailedMessage =
+              "Endpoint not found on server at $serverIp (Error 404). This might be a configuration issue or wrong Server IP.";
+        } else if (response.statusCode == 503) {
+          // Service Unavailable
+          errorType = "connection_error";
+          detailedMessage =
+              "Server at $serverIp is temporarily unavailable (Error 503). Please try again later or check server status.";
+        }
+        // You can add more specific status code checks here (e.g., 401 for auth issues from server)
+
         print("Server error: ${response.statusCode} - ${response.body}");
         return {
           "status": "error",
-          "message": "Server error: ${response.statusCode} - ${response.body}",
+          "message": detailedMessage,
+          "error_type": errorType,
         };
       }
-    } catch (e) {
-      print("Error connecting to server: $e");
+    } on TimeoutException catch (e) {
+      print("Connection to server ($serverIp) timed out: $e");
       return {
         "status": "error",
-        "message": "Failed to connect to server: $e",
+        "message":
+            "Connection timed out when trying to reach the server at $serverIp. Please check the Server IP and your network.",
+        "error_type": "connection_error",
+      };
+    } on SocketException catch (e) {
+      // Typically for host not found / connection refused
+      print(
+          "SocketException / Network error connecting to server ($serverIp): $e");
+      return {
+        "status": "error",
+        "message":
+            "Could not reach the server at $serverIp. It might be offline or the IP is incorrect. Please check the Server IP in settings and your network. (Details: ${e.message})",
+        "error_type": "connection_error",
+      };
+    } on http.ClientException catch (e) {
+      // Other HTTP client-side errors
+      print("ClientException connecting to server ($serverIp): $e");
+      return {
+        "status": "error",
+        "message":
+            "A network or client error occurred when trying to reach $serverIp. (Details: ${e.message})",
+        "error_type": "connection_error", // Often connection related
+      };
+    } catch (e) {
+      // Catch-all for other unexpected errors
+      print("Unexpected error connecting to server ($serverIp): $e");
+      return {
+        "status": "error",
+        "message":
+            "An unexpected error occurred while trying to connect to the server at $serverIp. (Details: $e)",
+        "error_type": "generic_error",
       };
     }
   }
 
   void showErrorDialog(String message) {
+    // ... (your existing showErrorDialog method is fine)
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: Text('Error'),
+        title: const Text('Error'),
         content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Close'),
+            child: const Text('Close'),
           ),
         ],
       ),
@@ -184,23 +253,30 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
   }
 
   void onProceed() async {
+    // ... (your existing onProceed method, but ensure alfassController handling is robust)
     if (selectedAudio == null ||
         selectedWatermark == null ||
         selectedMethod == null ||
         selectedBit == null ||
         selectedSubband == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Please complete all selections")),
+        const SnackBar(content: Text("Please complete all selections")),
       );
       return;
     }
 
+    // Parse alfass, ensuring it defaults correctly if input is invalid or empty
+    // The controller is already initialized with "0.05"
+    // If you want to re-parse or validate:
     selectedAlfass = double.tryParse(alfassController.text.trim()) ?? 0.05;
+    // If the parsed value is different or if you want to ensure the text field reflects the actual selectedAlfass
+    // after potential modification, you might want to update the controller.
+    // For simplicity, we'll assume the controller's text is used or it defaults.
+    // If the text field was empty and it defaulted to 0.05, update the controller:
     if (alfassController.text.trim().isEmpty) {
-      // Explicitly set if empty
       alfassController.text = selectedAlfass.toString();
     }
-    // Show confirmation dialog
+
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -225,64 +301,52 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
 
     if (proceed != true) return;
 
-    // Show loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
-    // Get the method identifier ("A", "B", "C", or "D")
     final String methodIdentifierToSend = _getMethodIdentifier(selectedMethod);
 
-    // Send request to server
     final result = await sendToLocalServer(
       audioUrl: getPublicAudioUrl(selectedAudio!),
       imageUrl: getPublicImageUrl(selectedWatermark!),
-      methodIdentifier: methodIdentifierToSend, // PASS THE IDENTIFIER HERE
+      methodIdentifier: methodIdentifierToSend,
       subband: selectedSubband!,
       bit: selectedBit!,
       alfass: selectedAlfass,
     );
 
-    // Close loading
     if (mounted) Navigator.of(context).pop(); // Close loading dialog
 
-    // Show result dialog
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(result['status'] == 'success' ? 'Success' : 'Error'),
-        content: Text(
-          result['status'] == 'success'
-              ? 'Watermark successfully embedded.\nSNR: ${result['snr'] ?? "N/A"}'
-              : result['message'] ?? 'Unknown error',
-        ),
-        actions: [
-          if (result['status'] == 'success')
+    // --- MODIFIED DIALOG LOGIC for result ---
+    if (result['status'] == 'success') {
+      // Your existing success dialog logic
+      showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Success'),
+          content: Text(
+              'Watermark successfully embedded.\nSNR: ${result['snr'] ?? "N/A"}'),
+          actions: [
             TextButton(
               child: const Text('Next'),
               onPressed: () {
                 if (!mounted) return;
-                Navigator.pop(context); // Close current dialog
+                Navigator.pop(dialogContext); // Close current dialog
 
                 String watermarkedAudioUrl = result['audio_url'] ?? '';
                 String keyUrlFromServer = result['key_url'] ?? '';
                 double? snrFromServer = (result['snr'] as num?)?.toDouble();
-
-                // --- USE THE FILENAME DIRECTLY FROM SERVER RESPONSE ---
                 String actualWatermarkedFilename =
                     result['watermarked_filename'] ?? "Unknown Audio File";
-                print(
-                    "✅ Server returned watermarked_filename: $actualWatermarkedFilename");
-                // --- END ---
 
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => EmbeddingResultScreen(
                       audioUrl: watermarkedAudioUrl,
-                      audioFilename:
-                          actualWatermarkedFilename, // <-- PASS THE DIRECT FILENAME HERE
+                      audioFilename: actualWatermarkedFilename,
                       keyUrl: keyUrlFromServer,
                       snr: snrFromServer,
                       method: selectedMethod!,
@@ -294,16 +358,73 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
                 );
               },
             ),
-          TextButton(
-            child: const Text('Close'),
-            onPressed: () => Navigator.pop(context),
+            TextButton(
+              child: const Text('Close'),
+              onPressed: () => Navigator.pop(dialogContext),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // status == 'error'
+      String errorMessage = result['message'] ?? 'An unknown error occurred.';
+      String errorType = result['error_type'] ?? 'generic_error';
+      // final String serverIpUsed = await AppSettings.getServerIp(); // No need to fetch again, message has it
+
+      if (errorType == 'connection_error') {
+        showDialog(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Connection Failed'),
+            content: SingleChildScrollView(
+              // In case error message is long
+              child: Text(
+                  // The message from sendToLocalServer already contains IP and error details
+                  errorMessage +
+                      "\n\nPlease check your network and ensure the Server IP in settings is correct."),
+            ),
+            actions: [
+              TextButton(
+                child: const Text('Go to Settings'),
+                onPressed: () {
+                  Navigator.pop(dialogContext); // Close this error dialog
+                  // Navigate to SettingsPage
+                  Navigator.push(
+                    context, // Use the original page's context for navigation
+                    MaterialPageRoute(
+                        builder: (context) => const SettingsPage()),
+                  );
+                },
+              ),
+              TextButton(
+                child: const Text('Close'),
+                onPressed: () => Navigator.pop(dialogContext),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
+      } else {
+        // Show a more generic error dialog for other types of errors
+        showDialog(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Error Occurred'),
+            content: SingleChildScrollView(child: Text(errorMessage)),
+            actions: [
+              TextButton(
+                child: const Text('Close'),
+                onPressed: () => Navigator.pop(dialogContext),
+              ),
+            ],
+          ),
+        );
+      }
+    }
+    // --- END OF MODIFIED DIALOG LOGIC ---
   }
 
   InputDecoration _inputDecoration() {
+    // ... (your existing _inputDecoration method is fine)
     return InputDecoration(
       filled: true,
       fillColor: Colors.white,
@@ -316,7 +437,14 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
   }
 
   @override
+  void dispose() {
+    alfassController.dispose(); // Dispose the controller
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    // ... (your existing build method is fine)
     return Scaffold(
       backgroundColor: const Color(0xFFF5E8E4),
       appBar: AppBar(
@@ -493,10 +621,12 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
             const SizedBox(height: 5),
             TextFormField(
               controller: alfassController,
-              decoration: _inputDecoration().copyWith(labelText: 'Alfass'),
-              keyboardType: TextInputType.number,
+              decoration: _inputDecoration()
+                  .copyWith(labelText: 'Alfass (e.g., 0.05)'), // Added example
+              keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true), // Allow decimal
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 20), // Increased spacing
             Center(
               child: ElevatedButton(
                 onPressed: onProceed,
@@ -520,6 +650,7 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
                 ),
               ),
             ),
+            const SizedBox(height: 20), // Added spacing at the bottom
           ],
         ),
       ),

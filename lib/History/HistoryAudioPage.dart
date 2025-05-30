@@ -1,13 +1,9 @@
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wavemark_app_v1/Etc/bottom_nav.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class HistoryAudioPage extends StatefulWidget {
   const HistoryAudioPage({Key? key}) : super(key: key);
@@ -70,26 +66,12 @@ class _HistoryAudioPageState extends State<HistoryAudioPage> {
 
   Future<void> downloadAudio(String url, String filename) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      String? basePath = prefs.getString('download_folder') ??
-          (await getApplicationDocumentsDirectory()).path;
-      final path = '$basePath/$filename';
-
-      final response = await Dio().get<List<int>>(
-        url,
-        options: Options(responseType: ResponseType.bytes),
-      );
-
-      final file = File(path);
-      await file.writeAsBytes(Uint8List.fromList(response.data!));
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Downloaded to: $path")),
-      );
+      if (!await launchUrlString(url)) {
+        throw 'Could not launch $url';
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Download failed: $e")),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Download failed: $e')));
     }
   }
 
@@ -374,46 +356,59 @@ class _HistoryAudioPageState extends State<HistoryAudioPage> {
             ),
           ),
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.all(16),
-              itemCount: filteredList.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                final audio = filteredList[index];
-                final filename = audio['filename'];
-                final url = audio['url'];
+            child:
+                isLoading // Check isLoading first to show a general loader for the list area
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                            color:
+                                Color(0xFFD1512D))) // Consistent loader color
+                    : filteredList.isEmpty
+                        ? _buildEmptyState() // Call a new helper method for empty state UI
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(
+                                16, 0, 16, 16), // Adjusted padding
+                            itemCount: filteredList.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final audio = filteredList[index];
+                              final filename = audio['filename'];
+                              final url = audio['url'];
 
-                return ListTile(
-                  tileColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                  leading:
-                      const Icon(Icons.music_note, color: Color(0xFFD1512D)),
-                  title: Text(filename,
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
-                  trailing: PopupMenuButton<String>(
-                    onSelected: (value) {
-                      if (value == 'download') {
-                        downloadAudio(url, filename);
-                      } else if (value == 'delete') {
-                        _confirmDelete(filename, audio);
-                      } else if (value == 'info') {
-                        showAudioInfoDialog(
-                            audio); // This now shows the new dialog
-                      }
-                    },
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                          value: 'download', child: Text("Download")),
-                      const PopupMenuItem(
-                          value: 'delete', child: Text("Delete")),
-                      const PopupMenuItem(value: 'info', child: Text("Info")),
-                    ],
-                  ),
-                  onTap: () => _playAudio(url, filename),
-                );
-              },
-            ),
+                              return ListTile(
+                                tileColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                                leading: const Icon(Icons.music_note,
+                                    color: Color(0xFFD1512D)),
+                                title: Text(filename,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600)),
+                                trailing: PopupMenuButton<String>(
+                                  onSelected: (value) {
+                                    if (value == 'download') {
+                                      // Assuming downloadAudio now uses launchUrlString
+                                      downloadAudio(url, filename);
+                                    } else if (value == 'delete') {
+                                      _confirmDelete(filename, audio);
+                                    } else if (value == 'info') {
+                                      showAudioInfoDialog(audio);
+                                    }
+                                  },
+                                  itemBuilder: (context) => [
+                                    const PopupMenuItem(
+                                        value: 'download',
+                                        child: Text("Download")),
+                                    const PopupMenuItem(
+                                        value: 'delete', child: Text("Delete")),
+                                    const PopupMenuItem(
+                                        value: 'info', child: Text("Info")),
+                                  ],
+                                ),
+                                onTap: () => _playAudio(url, filename),
+                              );
+                            },
+                          ),
           ),
           if (_currentTitle != null)
             Container(
@@ -485,5 +480,94 @@ class _HistoryAudioPageState extends State<HistoryAudioPage> {
       ),
       bottomNavigationBar: const BottomNavBar(currentRoute: '/history'),
     );
+  }
+  // ... (inside _HistoryAudioPageState class) ...
+
+  Widget _buildEmptyState() {
+    // Determine colors based on your theme
+    final Color iconColor = Colors.grey.shade400;
+    final Color primaryTextColor =
+        Colors.grey.shade700; // Darker grey for primary text
+    final Color secondaryTextColor =
+        Colors.grey.shade500; // Lighter grey for secondary text
+    final double iconSize = 70.0;
+    final double titleFontSize = 18.0;
+    final double subtitleFontSize = 14.0;
+
+    if (_searchQuery.isNotEmpty) {
+      // Case: No results for the current search query
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(Icons.search_off_outlined, size: iconSize, color: iconColor),
+              const SizedBox(height: 20),
+              Text(
+                "No Results Found",
+                style: TextStyle(
+                    fontSize: titleFontSize,
+                    fontWeight: FontWeight.w600,
+                    color: primaryTextColor),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "No audio files found matching '$_searchQuery'.\nTry a different search term or clear your search.",
+                style: TextStyle(
+                    fontSize: subtitleFontSize, color: secondaryTextColor),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      // Case: No audio files in the library at all
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(Icons.library_music_outlined,
+                  size: iconSize, color: iconColor),
+              const SizedBox(height: 20),
+              Text(
+                "Your Audio Library is Empty",
+                style: TextStyle(
+                    fontSize: titleFontSize,
+                    fontWeight: FontWeight.w600,
+                    color: primaryTextColor),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Watermarked audio files you create will appear here.\nTry embedding a watermark first!", // Slightly more actionable
+                style: TextStyle(
+                    fontSize: subtitleFontSize, color: secondaryTextColor),
+                textAlign: TextAlign.center,
+              ),
+              // Optional: Add a button to navigate to the embedding page if desired
+              // const SizedBox(height: 20),
+              // ElevatedButton.icon(
+              //   onPressed: () {
+              //     Navigator.pushNamed(context, '/embedding'); // Assuming you have this route
+              //   },
+              //   icon: const Icon(Icons.add_circle_outline),
+              //   label: const Text("Embed New Audio"),
+              //   style: ElevatedButton.styleFrom(
+              //       backgroundColor: const Color(0xFFD1512D), // Your accent color
+              //       foregroundColor: Colors.white,
+              //   ),
+              // )
+            ],
+          ),
+        ),
+      );
+    }
   }
 }

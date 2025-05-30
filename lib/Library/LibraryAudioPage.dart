@@ -1,13 +1,9 @@
-import 'dart:io';
-import 'dart:typed_data';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wavemark_app_v1/Etc/bottom_nav.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class LibraryAudioPage extends StatefulWidget {
   const LibraryAudioPage({Key? key}) : super(key: key);
@@ -68,26 +64,12 @@ class _LibraryAudioPageState extends State<LibraryAudioPage> {
 
   Future<void> downloadAudio(String url, String filename) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      String? basePath = prefs.getString('download_folder') ??
-          (await getApplicationDocumentsDirectory()).path;
-      final path = '$basePath/$filename';
-
-      final response = await Dio().get<List<int>>(
-        url,
-        options: Options(responseType: ResponseType.bytes),
-      );
-
-      final file = File(path);
-      await file.writeAsBytes(Uint8List.fromList(response.data!));
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Downloaded to: $path")),
-      );
+      if (!await launchUrlString(url)) {
+        throw 'Could not launch $url';
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Download failed: $e")),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Download failed: $e')));
     }
   }
 
