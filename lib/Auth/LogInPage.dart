@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:wavemark_app_v1/Etc/edit_profile_screen.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -70,7 +71,9 @@ class _LoginPageState extends State<LoginPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Google login successful!')),
         );
-        Navigator.pushReplacementNamed(context, '/home');
+        // Navigator.pushReplacementNamed(
+        //     context, '/home'); // Navigate to home screen
+        await _handleUserProfile(response.user!);
       } else {
         throw Exception('Google login failed: user is null.');
       }
@@ -80,6 +83,25 @@ class _LoginPageState extends State<LoginPage> {
       );
     } finally {
       setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _handleUserProfile(User user) async {
+    if (!mounted) return;
+
+    final profileResponse = await Supabase.instance.client
+        .from('profiles')
+        .select('id')
+        .eq('id', user.id)
+        .maybeSingle();
+
+    if (profileResponse == null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+      );
+    } else {
+      Navigator.pushReplacementNamed(context, '/home');
     }
   }
 
@@ -186,7 +208,20 @@ class _LoginPageState extends State<LoginPage> {
                       icon: const Icon(FontAwesomeIcons.facebookF,
                           color: Colors.blue),
                       label: const Text('Facebook'),
-                      onPressed: () {},
+                      onPressed:
+                          _isLoading // Also disable this button if _isLoading is true
+                              ? null
+                              : () {
+                                  // Show a SnackBar when the Facebook button is pressed
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                          "Facebook login is currently under development."),
+                                      duration:
+                                          Duration(seconds: 2), // Optional
+                                    ),
+                                  );
+                                },
                       style: OutlinedButton.styleFrom(
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),

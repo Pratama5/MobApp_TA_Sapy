@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:wavemark_app_v1/Etc/edit_profile_screen.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -13,23 +15,75 @@ class SignUpPage extends StatefulWidget {
 class _SignUpPageState extends State<SignUpPage> {
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
+  bool _isLoading = false;
 
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn(
+    scopes: ['email', 'openid'],
+    // Use the same serverClientId from your LoginPage.dart
+    serverClientId:
+        '351802350238-icrdvr0li2gmc21mgeucbr1pv689t7if.apps.googleusercontent.com',
+  );
 
+  Future<void> _handleUserProfile(User user) async {
+    if (!mounted) return;
+
+    // Check if a profile already exists for the new user
+    final profileResponse = await Supabase.instance.client
+        .from('profiles')
+        .select('id') // We only need to check for existence
+        .eq('id', user.id)
+        .maybeSingle();
+
+    // If profile doesn't exist, it's a new user. Direct them to create one.
+    // If it exists, they are a returning user.
+    if (profileResponse == null) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+      );
+    } else {
+      Navigator.pushReplacementNamed(context, '/home');
+    }
+  }
+
+// Replace your old _handleGoogleSignIn with this
   Future<void> _handleGoogleSignIn() async {
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+
     try {
-      final GoogleSignInAccount? account = await _googleSignIn.signIn();
-      if (account != null) {
-        // Navigate to home screen after successful sign in
-        Navigator.pushReplacementNamed(context, '/home');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Signed up as ${account.displayName}')),
-        );
+      final googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) {
+        // User cancelled the sign-in
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
+      if (googleAuth.idToken == null) {
+        throw Exception("Google Sign-In failed: Missing ID Token.");
+      }
+
+      // Sign in to Supabase with the Google ID token
+      final response = await Supabase.instance.client.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: googleAuth.idToken!,
+      );
+
+      if (response.user != null) {
+        // After successful Supabase auth, handle the profile check and navigation
+        await _handleUserProfile(response.user!);
+      } else {
+        throw Exception('Supabase Google sign-up failed: user is null.');
       }
     } catch (error) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Google Sign-In failed: $error')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Google Sign-Up failed: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -83,10 +137,13 @@ class _SignUpPageState extends State<SignUpPage> {
                   minimumSize: const Size(double.infinity, 48),
                 ),
                 onPressed: () {},
-                child: Text(
-                  "Mendaftar",
-                  style: GoogleFonts.poppins(fontSize: 16, color: Colors.white),
-                ),
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : Text(
+                        "Mendaftar",
+                        style: GoogleFonts.poppins(
+                            fontSize: 16, color: Colors.white),
+                      ),
               ),
               const SizedBox(height: 16),
               Row(
@@ -104,7 +161,21 @@ class _SignUpPageState extends State<SignUpPage> {
                   _handleGoogleSignIn),
               const SizedBox(height: 12),
               _buildSocialButton(
-                  FontAwesomeIcons.facebook, "Facebook", Colors.blue, () {}),
+                FontAwesomeIcons.facebook,
+                "Facebook",
+                Colors.blue,
+                () {
+                  // Show a SnackBar when the Facebook button is pressed
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text(
+                          "Facebook login is currently under development."),
+                      duration:
+                          Duration(seconds: 2), // Optional: how long it shows
+                    ),
+                  );
+                },
+              ),
               const SizedBox(height: 24),
               Wrap(
                 alignment: WrapAlignment.center,

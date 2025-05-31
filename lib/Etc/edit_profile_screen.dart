@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'bottom_nav.dart';
+import 'package:wavemark_app_v1/Etc/uploadProfilePicPage.dart'; // Your import for the upload page
+import 'bottom_nav.dart'; // Assuming this is your custom bottom navigation
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -10,84 +11,156 @@ class EditProfileScreen extends StatefulWidget {
 }
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
-  String? _selectedAsset;
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _bioController = TextEditingController();
+  final _nameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _bioController = TextEditingController();
+  final _phoneController = TextEditingController();
   bool isLoading = true;
+  String? _networkAvatarUrl; // For URLs from Supabase/Google or newly uploaded
 
-  final List<String> _avatarOptions = [
-    'assets/Watermark_1.png',
-    'assets/Watermark_2.png',
-    'assets/Watermark_3.png',
-    'assets/Watermark_4.png',
-  ];
+  // Theme Colors (copied from your previous version for consistency)
+  static const Color _scaffoldBgColor = Color(0xFFF8EDEB);
+  static const Color _appBarLeadingColor = Color(0xFFD1512D);
+  static const Color _appBarTitleColor = Color(0xFF411530);
+  static const Color _buttonPrimaryBgColor = Color(0xFFD1512D);
+  static const Color _buttonPrimaryFgColor = Colors.white;
 
   @override
   void initState() {
     super.initState();
-    _loadSavedData();
+    _loadProfileDataFromSupabase();
   }
 
-  void _loadSavedData() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _nameController.text = prefs.getString('name') ?? '';
-      _emailController.text = prefs.getString('email') ?? '';
-      _bioController.text = prefs.getString('bio') ?? '';
-      _selectedAsset = prefs.getString('avatarUrl');
-      isLoading = false;
-    });
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _emailController.dispose();
+    _bioController.dispose();
+    _phoneController.dispose();
+    super.dispose();
   }
 
-  void _selectAvatarFromAssets() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Wrap(
-            spacing: 16,
-            runSpacing: 16,
-            children:
-                _avatarOptions.map((path) {
-                  return GestureDetector(
-                    onTap: () {
-                      setState(() => _selectedAsset = path);
-                      Navigator.pop(context);
-                    },
-                    child: CircleAvatar(
-                      backgroundImage: AssetImage(path),
-                      radius: 30,
-                    ),
-                  );
-                }).toList(),
-          ),
-        );
-      },
+  Future<void> _changeProfilePicture() async {
+    final String? newAvatarUrl = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+          builder: (context) => const UploadProfilePictureScreen()),
     );
+
+    if (newAvatarUrl != null && newAvatarUrl.isNotEmpty) {
+      if (mounted) {
+        setState(() {
+          _networkAvatarUrl = newAvatarUrl; // Update the URL to display
+        });
+      }
+    }
   }
 
-  void _saveProfile() async {
+  Future<void> _loadProfileDataFromSupabase() async {
+    if (!mounted) return;
+    setState(() => isLoading = true);
+
+    final supabase = Supabase.instance.client;
+    final currentUser = supabase.auth.currentUser;
+
+    if (currentUser == null) {
+      if (mounted) {
+        Navigator.of(context).pushReplacementNamed('/login');
+      }
+      return;
+    }
+
+    _emailController.text = currentUser.email ?? '';
+    _networkAvatarUrl = null; // Initialize
+
+    try {
+      final profileResponse = await supabase
+          .from('profiles')
+          .select(
+              'display_name, bio, phone, avatar_url') // Select specific columns
+          .eq('id', currentUser.id)
+          .maybeSingle();
+
+      if (profileResponse != null) {
+        _nameController.text = profileResponse['display_name'] ?? '';
+        _bioController.text = profileResponse['bio'] ?? '';
+        _phoneController.text = profileResponse['phone'] ?? '';
+        // Directly use avatar_url from DB as it should be a network URL or null
+        _networkAvatarUrl = profileResponse['avatar_url'];
+      } else {
+        // Profile doesn't exist yet, pre-fill with Google data if available
+        _nameController.text = currentUser.userMetadata?['full_name'] ??
+            currentUser.userMetadata?['name'] ??
+            '';
+        _networkAvatarUrl =
+            currentUser.userMetadata?['avatar_url']; // This is a network URL
+        _bioController.text = '';
+        _phoneController.text = '';
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading profile: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _saveProfile() async {
     final name = _nameController.text.trim();
-    final email = _emailController.text.trim();
     final bio = _bioController.text.trim();
+    final phone = _phoneController.text.trim();
+    final currentUser = Supabase.instance.client.auth.currentUser;
 
-    if (name.isNotEmpty) {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('name', name);
-      await prefs.setString('email', email);
-      await prefs.setString('bio', bio);
-      await prefs.setString('avatarUrl', _selectedAsset ?? '');
+    if (currentUser == null) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Not authenticated!')));
+      return;
+    }
 
-      Navigator.pop(context, true);
-    } else {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Nama tidak boleh kosong')));
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nama Lengkap (Name) cannot be empty')));
+      return;
+    }
+
+    if (!mounted) return;
+    setState(() => isLoading = true);
+
+    // _networkAvatarUrl now holds the URL from Google, loaded from DB, or newly uploaded
+    final String? finalAvatarUrlToSave = _networkAvatarUrl;
+
+    final profileData = {
+      'id': currentUser.id,
+      'display_name': name,
+      'bio': bio,
+      'phone': phone.isNotEmpty ? phone : null,
+      'avatar_url': finalAvatarUrlToSave, // This will be null if no avatar
+      'created_at': DateTime.now().toIso8601String(),
+    };
+
+    try {
+      await Supabase.instance.client.from('profiles').upsert(
+            profileData,
+            onConflict: 'id',
+          );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile saved successfully!')),
+        );
+        Navigator.pop(context, true); // Indicate success
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save profile: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -95,98 +168,142 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.transparent, // Or your themed background color
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFFD1512D)),
+          icon: const Icon(Icons.arrow_back, color: _appBarLeadingColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Edit Profile',
           style: TextStyle(
-            color: Color(0xFF411530),
+            color: _appBarTitleColor,
             fontWeight: FontWeight.bold,
             fontSize: 22,
           ),
         ),
       ),
-      backgroundColor: const Color(0xFFF8EDEB),
-      body:
-          isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    GestureDetector(
-                      onTap: _selectAvatarFromAssets,
-                      child: CircleAvatar(
-                        radius: 50,
-                        backgroundImage:
-                            _selectedAsset != null
-                                ? AssetImage(_selectedAsset!)
-                                : const AssetImage('assets/profile_pic.png'),
-                      ),
+      backgroundColor: _scaffoldBgColor,
+      body: isLoading
+          ? const Center(
+              child: CircularProgressIndicator(
+                  color: _buttonPrimaryBgColor)) // Use themed color
+          : SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                children: [
+                  GestureDetector(
+                    onTap: _changeProfilePicture,
+                    child: CircleAvatar(
+                      radius: 50,
+                      backgroundColor:
+                          Colors.grey.shade300, // Fallback background
+                      backgroundImage: _networkAvatarUrl != null &&
+                              _networkAvatarUrl!.isNotEmpty
+                          ? NetworkImage(_networkAvatarUrl!)
+                          : const AssetImage(
+                                  'assets/profile_pic.png') // Default placeholder
+                              as ImageProvider,
+                      child: (_networkAvatarUrl == null ||
+                                  _networkAvatarUrl!.isEmpty) &&
+                              !(_networkAvatarUrl?.startsWith('http') ??
+                                  false) // Also check if it's a valid network URL to avoid showing icon over asset
+                          ? const Icon(Icons.person,
+                              size: 50,
+                              color: Colors.white70) // Icon if no image
+                          : null,
                     ),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: _nameController,
-                      decoration: InputDecoration(
-                        labelText: 'Nama Lengkap',
-                        border: OutlineInputBorder(
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: _changeProfilePicture,
+                    child: const Text(
+                      'Change Profile Picture',
+                      style: TextStyle(color: _buttonPrimaryBgColor),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: _nameController,
+                    decoration: InputDecoration(
+                      labelText: 'Nama Lengkap',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _emailController,
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      labelText: 'Email',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: Colors.grey[200],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _phoneController,
+                    decoration: InputDecoration(
+                      labelText: 'Nomor HP (Phone)',
+                      prefixIcon: const Icon(Icons.phone_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _bioController,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      labelText: 'Bio',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: isLoading ? null : _saveProfile,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _buttonPrimaryBgColor,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        filled: true,
-                        fillColor: Colors.white,
                       ),
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                  color: _buttonPrimaryFgColor, strokeWidth: 2))
+                          : const Text(
+                              'Simpan',
+                              style: TextStyle(
+                                  fontSize: 16, color: _buttonPrimaryFgColor),
+                            ),
                     ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _emailController,
-                      decoration: InputDecoration(
-                        labelText: 'Email',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: _bioController,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        labelText: 'Bio',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _saveProfile,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFD1512D),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'Simpan',
-                          style: TextStyle(fontSize: 16, color: Colors.white),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-      bottomNavigationBar: const BottomNavBar(currentRoute: '/profile'),
+            ),
+      bottomNavigationBar: const BottomNavBar(
+          currentRoute: '/profile'), // Make sure this route is correct
     );
   }
 }
