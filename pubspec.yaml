@@ -113,7 +113,7 @@ flutter:
 flutter_launcher_icons:
   android: true             # Generate Android icons (true/false or "launcher_icon")
   ios: false                 # Generate iOS icons (true/false)
-  image_path: "assets/icon/Icon.png" # IMPORTANT: Path to your main icon image
+  image_path: "assets/icon/Icon_wave.png" # IMPORTANT: Path to your main icon image
   # Optional: For Android Adaptive Icons (Android 8.0+)
   # adaptive_icon_background: "#FFFFFF" # Hex color for the background layer
   # adaptive_icon_foreground: "assets/icon/app_icon_foreground.png" # Path to your foreground image (often the same as image_path or a version with transparency)
