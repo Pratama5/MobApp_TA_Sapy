@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:wavemark_app_v1/Etc/bottom_nav.dart'; // Ensure this path is correct
+import 'package:wavemark_app_v1/Etc/bottom_nav.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class ExtractionResultScreen extends StatelessWidget {
   final String imageUrl;
@@ -44,6 +45,17 @@ class ExtractionResultScreen extends StatelessWidget {
     final bool isDL = alfass == "DL-Auto";
     print("Displaying ExtractionResultScreen with imageUrl: $imageUrl");
 
+    // --- Determine Payload based on Bit ---
+    String payloadValue;
+    if (bit == 16) {
+      payloadValue = "172.266";
+    } else if (bit == 32) {
+      payloadValue = "43.066";
+    } else {
+      payloadValue = "N/A"; // Fallback if bit is neither 16 nor 32
+    }
+    // --- End of Payload determination ---
+
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: true,
@@ -64,13 +76,15 @@ class ExtractionResultScreen extends StatelessWidget {
               Icons.file_download_outlined,
               color: Color(0xFF411530),
             ),
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content:
-                      Text("Download image functionality not yet implemented."),
-                ),
-              );
+            onPressed: () async {
+              try {
+                if (!await launchUrlString(imageUrl)) {
+                  throw 'Could not launch $imageUrl';
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Download failed: $e')));
+              }
             },
           ),
           IconButton(
@@ -143,7 +157,7 @@ class ExtractionResultScreen extends StatelessWidget {
                       loadingBuilder: (BuildContext context, Widget child,
                           ImageChunkEvent? loadingProgress) {
                         if (loadingProgress == null) {
-                          print("✅ Image loaded successfully: $imageUrl");
+                          print(" Image loaded successfully: $imageUrl");
                           return child;
                         }
                         final double progressPercentage =
@@ -166,9 +180,9 @@ class ExtractionResultScreen extends StatelessWidget {
                       },
                       errorBuilder: (BuildContext context, Object error,
                           StackTrace? stackTrace) {
-                        print("❌ Image load error for $imageUrl: $error");
+                        print(" Image load error for $imageUrl: $error");
                         if (stackTrace != null) {
-                          print("📄 StackTrace: $stackTrace");
+                          print(" StackTrace: $stackTrace");
                         }
                         return Container(
                           padding: const EdgeInsets.all(10),
@@ -207,7 +221,7 @@ class ExtractionResultScreen extends StatelessWidget {
               _buildInfoRow("Bit", isDL ? '-' : bit.toString()),
               _buildInfoRow("Alpha", alfass),
               _buildInfoRow("BER", actualBer),
-              _buildInfoRow("Payload", "172.266"), // This is still hardcoded
+              _buildInfoRow("Payload", payloadValue),
             ],
           ),
         ),

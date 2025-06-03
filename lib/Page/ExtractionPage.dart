@@ -34,7 +34,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
   bool _isAudioLoading = false;
   bool _isExtracting = false;
 
-  List<String> audioList = [];
+  List<Map<String, String>> audioList = [];
 
   @override
   void initState() {
@@ -58,11 +58,19 @@ class _ExtractionPageState extends State<ExtractionPage> {
   }
 
   Future<void> loadDropdownData() async {
-    final audios = await fetchFileNamesFromSupabase('audios');
+    final response = await Supabase.instance.client
+        .from('audio_watermarked')
+        .select('filename, url')
+        .order('uploaded_at', ascending: false);
+
     if (mounted) {
-      // Check if mounted
       setState(() {
-        audioList = audios;
+        audioList = (response)
+            .map((item) => {
+                  'filename': item['filename']?.toString() ?? '',
+                  'url': item['url']?.toString() ?? '',
+                })
+            .toList();
       });
     }
   }
@@ -242,7 +250,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
             headers: {"Content-Type": "application/json"},
             body: jsonEncode(payload),
           )
-          .timeout(const Duration(seconds: 30)); // Keep or adjust timeout
+          .timeout(const Duration(seconds: 300)); // Keep or adjust timeout
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
@@ -372,8 +380,8 @@ class _ExtractionPageState extends State<ExtractionPage> {
               value: selectedAudio,
               isExpanded: true,
               items: audioList
-                  .map((audio) =>
-                      DropdownMenuItem(value: audio, child: Text(audio)))
+                  .map((item) => DropdownMenuItem(
+                      value: item['filename'], child: Text(item['filename']!)))
                   .toList(),
               onChanged: (value) async {
                 if (value == null) return;

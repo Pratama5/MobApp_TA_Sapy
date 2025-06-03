@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'about_app_screen.dart'; // Your import
 import 'edit_profile_screen.dart'; // Your import
 import 'bottom_nav.dart'; // Your import
+import 'package:url_launcher/url_launcher_string.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -320,6 +321,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         onTap: () => Navigator.pushNamed(context, '/settings'),
                       ),
                     ),
+
                     const SizedBox(height: 12),
                     Card(
                       shape: RoundedRectangleBorder(
@@ -338,6 +340,29 @@ class _ProfilePageState extends State<ProfilePage> {
                             MaterialPageRoute(
                               builder: (_) => const AboutAppScreen(),
                             ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Card(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 2,
+                      child: ListTile(
+                        leading: const Icon(
+                          Icons.rate_review_outlined, // Or Icons.feedback
+                          color: Color(0xFFD1512D), // Match your theme
+                        ),
+                        title: const Text('Survey & Feedback'),
+                        onTap: () {
+                          // TODO: Implement navigation or action for survey/feedback
+                          // Example: Navigator.pushNamed(context, '/feedback');
+                          launchUrlString(
+                              'https://forms.gle/9wyTSGQKomd2nVVQ8');
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("Redirecting! ")),
                           );
                         },
                       ),

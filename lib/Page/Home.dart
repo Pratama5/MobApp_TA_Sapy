@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart'; // For _logout
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:wavemark_app_v1/Etc/about_app_screen.dart';
 import 'package:wavemark_app_v1/Etc/bottom_nav.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -277,6 +278,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   onCardTap('Profile');
                 }),
             ListTile(
+                leading: const Icon(Icons.settings_outlined), // Updated icon
+                title: const Text('Settings'),
+                onTap: () {
+                  Navigator.pop(context); // Close drawer first
+                  Navigator.pushNamed(context, '/settings');
+                }),
+            ListTile(
                 leading: const Icon(Icons.info_outline), // Updated icon
                 title: const Text('About App'),
                 onTap: () {
@@ -288,6 +296,20 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   );
                 }),
+            ListTile(
+              leading: const Icon(
+                  Icons.feedback_outlined), // Or Icons.rate_review_outlined
+              title: const Text('Survey & Feedback'),
+              onTap: () {
+                Navigator.pop(context); // Close the drawer
+                // TODO: Implement navigation to your Survey/Feedback page or launch URL
+                // Example: Navigator.pushNamed(context, '/feedback');
+                launchUrlString('https://forms.gle/9wyTSGQKomd2nVVQ8');
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("Redirecting!")),
+                );
+              },
+            ),
             ListTile(
                 leading: const Icon(Icons.logout_rounded), // Updated icon
                 title: const Text('Log Out'),

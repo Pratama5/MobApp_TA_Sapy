@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:url_launcher/url_launcher_string.dart';
 
 class EmbeddingResultScreen extends StatefulWidget {
   final String audioUrl;
@@ -33,6 +34,8 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
   bool isPlaying = false;
   Duration _duration = Duration.zero;
   Duration _position = Duration.zero;
+  static const String _downloadKeyOption = 'download_key';
+  static const String _downloadAudioOption = 'download_audio';
 
   @override
   void initState() {
@@ -77,6 +80,49 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
         setState(() {
           isLoadingAudio = false;
         });
+      }
+    }
+  }
+  // Inside _EmbeddingResultScreenState class
+
+  Future<void> _launchSingleUrl(String? url, String fileTypeDescription) async {
+    final scaffoldMessenger =
+        ScaffoldMessenger.of(context); // Use the State's context
+    if (!mounted) return;
+
+    if (url != null && url.isNotEmpty) {
+      try {
+        if (await launchUrlString(url)) {
+          if (mounted) {
+            scaffoldMessenger.showSnackBar(
+              SnackBar(
+                  content: Text(
+                      "Opening $fileTypeDescription... Please check your browser or downloads.")),
+            );
+          }
+        } else {
+          if (mounted) {
+            scaffoldMessenger.showSnackBar(
+              SnackBar(
+                  content:
+                      Text('Could not launch $fileTypeDescription URL: $url')),
+            );
+          }
+        }
+      } catch (e) {
+        if (mounted) {
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+                content: Text('Failed to launch $fileTypeDescription URL: $e')),
+          );
+        }
+      }
+    } else {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          SnackBar(
+              content: Text('$fileTypeDescription URL is missing or invalid.')),
+        );
       }
     }
   }
@@ -131,6 +177,72 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
         elevation: 0, // No shadow
         leading: const BackButton(
             color: Color(0xFFD1512D)), // Custom back button color
+        actions: [
+          PopupMenuButton<String>(
+            icon: const Icon(
+              Icons.file_download_outlined, // You can keep this icon
+              color: Color(0xFF411530),
+            ),
+            tooltip: "Download Options",
+            onSelected: (String value) async {
+              // Make this async
+              switch (value) {
+                case _downloadKeyOption:
+                  await _launchSingleUrl(widget.keyUrl, "key file");
+                  break;
+                case _downloadAudioOption:
+                  // Using widget.audioFilename for a more descriptive message
+                  await _launchSingleUrl(
+                      widget.audioUrl, "audio file (${widget.audioFilename})");
+                  break;
+              }
+            },
+            itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+              PopupMenuItem<String>(
+                value: _downloadKeyOption,
+                child: Row(
+                  children: <Widget>[
+                    Icon(Icons.vpn_key_outlined, color: Colors.orange.shade800),
+                    const SizedBox(width: 10),
+                    const Text('Download Key File'),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem<String>(
+                value: _downloadAudioOption,
+                child: Row(
+                  children: <Widget>[
+                    Icon(Icons.audiotrack_outlined,
+                        color: Colors.blue.shade700),
+                    const SizedBox(width: 10),
+                    const Text('Download Audio File'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          IconButton(
+            icon: const Icon(Icons.help_outline, color: Color(0xFF411530)),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  title: const Text("Penjelasan SNR "),
+                  content: const Text(
+                      "🔸 SNR (Signal-to-Noise Ratio): mengukur rasio kualitas sinyal terhadap noise. "
+                      "Semakin tinggi nilainya, semakin baik kualitas audio.\n\n"),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text("Tutup"),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),

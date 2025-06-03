@@ -163,7 +163,7 @@ class _LibraryImagePageState extends State<LibraryImagePage> {
                       crossAxisCount: 2,
                       mainAxisSpacing: 20,
                       crossAxisSpacing: 16,
-                      childAspectRatio: 0.72,
+                      childAspectRatio: 1.0,
                     ),
                     itemBuilder: (context, index) {
                       final image = imageFiles[index];

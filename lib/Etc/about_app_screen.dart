@@ -7,7 +7,7 @@ class AboutAppScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFDF6F0),
+      backgroundColor: const Color.fromRGBO(255, 241, 232, 1),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -47,7 +47,7 @@ class AboutAppScreen extends StatelessWidget {
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),
-                  Text('Versi 1.0.0'),
+                  Text('Versi 1.0.1'),
                   Divider(height: 24, thickness: 1),
                   Text(
                     'Aplikasi ini dikembangkan untuk menanamkan watermark pada file audio secara aman dan tak terdengar.'

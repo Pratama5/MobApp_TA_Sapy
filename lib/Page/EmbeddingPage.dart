@@ -24,11 +24,11 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
   int? selectedBit;
   String? selectedAudio;
   String? selectedWatermark;
-  double selectedAlfass = 0.05; // Default value
+  double selectedAlfass = 0.015; // Default value
 
   // Initialize with the default value or an empty string if you prefer
   final TextEditingController alfassController =
-      TextEditingController(text: "0.05");
+      TextEditingController(text: "0.015");
 
   List<String> methodList = [
     'DWT-DST-SVD-SS',
@@ -36,8 +36,8 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
     'SWT-DST-QR-SS',
     'SWT-DCT-QR-SS',
   ];
-  List<String> audioList = [];
-  List<String> watermarkList = [];
+  List<Map<String, String>> audioList = [];
+  List<Map<String, String>> watermarkList = [];
   List<int> subbandoptions = [1, 2, 3, 4];
   List<int> bitOptions = [16, 32];
 
@@ -72,36 +72,33 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
   }
 
   Future<void> loadDropdownData() async {
-    // ... (your existing loadDropdownData method is fine)
-    final audios = await fetchFileNamesFromSupabase('audios');
-    final images = await fetchFileNamesFromSupabase('images');
+    final audioResponse = await Supabase.instance.client
+        .from('audio_files')
+        .select('filename, url')
+        .order('uploaded_at', ascending: false);
+
+    final imageResponse = await Supabase.instance.client
+        .from('image_watermarks')
+        .select('filename, url')
+        .order('uploaded_at', ascending: false);
 
     if (mounted) {
-      // Good practice to check if mounted before calling setState
       setState(() {
-        audioList = audios;
-        watermarkList = images;
+        audioList = (audioResponse as List<dynamic>)
+            .map((item) => {
+                  'filename': item['filename'] as String,
+                  'url': item['url'] as String,
+                })
+            .toList();
+
+        watermarkList = (imageResponse as List<dynamic>)
+            .map((item) => {
+                  'filename': item['filename'] as String,
+                  'url': item['url'] as String,
+                })
+            .toList();
       });
     }
-  }
-
-  Future<List<String>> fetchFileNamesFromSupabase(String path) async {
-    // ... (your existing fetchFileNamesFromSupabase method is fine)
-    final response =
-        await Supabase.instance.client.storage.from('media').list(path: path);
-
-    if (response.isEmpty) return [];
-
-    final filenames = response
-        .where((item) =>
-            item.name.endsWith('.wav') ||
-            item.name.endsWith('.mp3') ||
-            item.name.endsWith('.png') ||
-            item.name.endsWith('.jpg'))
-        .map((item) => item.name)
-        .toList();
-
-    return filenames;
   }
 
   String getPublicImageUrl(String fileName) {
@@ -264,15 +261,8 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
       );
       return;
     }
+    selectedAlfass = double.tryParse(alfassController.text.trim()) ?? 0.015;
 
-    // Parse alfass, ensuring it defaults correctly if input is invalid or empty
-    // The controller is already initialized with "0.05"
-    // If you want to re-parse or validate:
-    selectedAlfass = double.tryParse(alfassController.text.trim()) ?? 0.05;
-    // If the parsed value is different or if you want to ensure the text field reflects the actual selectedAlfass
-    // after potential modification, you might want to update the controller.
-    // For simplicity, we'll assume the controller's text is used or it defaults.
-    // If the text field was empty and it defaulted to 0.05, update the controller:
     if (alfassController.text.trim().isEmpty) {
       alfassController.text = selectedAlfass.toString();
     }
@@ -524,8 +514,10 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
               value: selectedAudio,
               isExpanded: true,
               items: audioList
-                  .map((audio) =>
-                      DropdownMenuItem(value: audio, child: Text(audio)))
+                  .map((audio) => DropdownMenuItem(
+                        value: audio['filename'],
+                        child: Text(audio['filename'] ?? ''),
+                      ))
                   .toList(),
               onChanged: (value) => setState(() => selectedAudio = value),
               decoration: _inputDecoration(),
@@ -545,12 +537,12 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
               value: selectedWatermark,
               isExpanded: true,
               items: watermarkList
-                  .map((wm) => DropdownMenuItem(
-                        value: wm,
+                  .map((image) => DropdownMenuItem(
+                        value: image['filename'],
                         child: Row(
                           children: [
                             Image.network(
-                              getPublicImageUrl(wm),
+                              getPublicImageUrl(image['filename']!),
                               width: 40,
                               height: 40,
                               errorBuilder: (context, error, stackTrace) =>
@@ -558,8 +550,8 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
                             ),
                             const SizedBox(width: 10),
                             Expanded(
-                                child:
-                                    Text(wm, overflow: TextOverflow.ellipsis)),
+                                child: Text(image['filename'] ?? '',
+                                    overflow: TextOverflow.ellipsis)),
                           ],
                         ),
                       ))
@@ -622,7 +614,7 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
             TextFormField(
               controller: alfassController,
               decoration: _inputDecoration()
-                  .copyWith(labelText: 'Alfass (e.g., 0.05)'), // Added example
+                  .copyWith(labelText: 'Alfass (e.g., 0.015)'), // Added example
               keyboardType: const TextInputType.numberWithOptions(
                   decimal: true), // Allow decimal
             ),
