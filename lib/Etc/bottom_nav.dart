@@ -22,7 +22,7 @@ class BottomNavBar extends StatelessWidget {
     return Container(
       height: 68,
       decoration: const BoxDecoration(
-        color: Color(0xFF411530), // ← warna ungu tua
+        color: Color(0xFF411530),
         boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
       ),
       child: Row(
@@ -45,7 +45,7 @@ class BottomNavBar extends StatelessWidget {
             ),
           ),
 
-          // BOOK / MATERI
+          // LIBRARY
           GestureDetector(
             onTap: () {
               if (currentRoute != '/library') {
@@ -55,13 +55,27 @@ class BottomNavBar extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.menu_book,
-                  size: 28,
-                  color: getIconColor('/library'),
-                ),
+                Icon(Icons.menu_book,
+                    size: 28, color: getIconColor('/library')),
                 const SizedBox(height: 4),
                 Text("Library", style: getLabelStyle('/library')),
+              ],
+            ),
+          ),
+
+          // ATTACK
+          GestureDetector(
+            onTap: () {
+              if (currentRoute != '/attack') {
+                Navigator.pushNamed(context, '/attack');
+              }
+            },
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.whatshot, size: 28, color: getIconColor('/attack')),
+                const SizedBox(height: 4),
+                Text("Attack", style: getLabelStyle('/attack')),
               ],
             ),
           ),
