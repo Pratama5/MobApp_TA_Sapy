@@ -40,7 +40,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
 
       initialRoute:
-          '/', //  FOR TESTING: Open HomeScreen directly. Leave as '/' for production.
+          '/attack', //  FOR TESTING: Open HomeScreen directly. Leave as '/' for production.
       routes: {
         '/': (context) => AuthGate(), // keep this for future use
         '/login': (context) => const LoginPage(),

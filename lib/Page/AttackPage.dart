@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wavemark_app_v1/Etc/bottom_nav.dart';
+import 'package:wavemark_app_v1/Page/AttackResult.dart'; // pastikan path ini benar
 
 class AttackPage extends StatefulWidget {
   const AttackPage({super.key});
@@ -76,6 +77,47 @@ class _AttackPageState extends State<AttackPage> {
     );
   }
 
+  void _showAttackInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFFF5E8E4),
+        title: const Text('Penjelasan Attack',
+            style: TextStyle(color: Color(0xFF411530))),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text(
+                'Attack adalah modifikasi audio seperti filter, noise, atau kompresi yang dapat merusak watermark.',
+                style: TextStyle(color: Color(0xFF411530)),
+              ),
+              SizedBox(height: 12),
+              Text('• Low Pass Filter: Menghapus frekuensi tinggi.'),
+              Text('• Band Pass Filter: Menyaring frekuensi tertentu.'),
+              Text('• Requantization: Menurunkan bit-depth audio.'),
+              Text('• Additive Noise: Menambahkan gangguan noise.'),
+              Text('• Resampling: Mengubah sampling rate audio.'),
+              Text('• Time Scale Modification: Mengubah durasi audio.'),
+              Text('• Linear Speed Change: Mempercepat atau memperlambat.'),
+              Text('• Pitch Shifting: Mengubah nada suara.'),
+              Text('• Equalizer: Mengatur kekuatan frekuensi.'),
+              Text('• Echo: Menambahkan gema pada audio.'),
+              Text('• MP3 Compression: Mengompres audio ke MP3.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child:
+                const Text('Tutup', style: TextStyle(color: Color(0xFF5E2A4D))),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _applyAttack() {
     if (selectedAudio == null ||
         selectedAttack == null ||
@@ -86,11 +128,16 @@ class _AttackPageState extends State<AttackPage> {
       return;
     }
 
-    // TODO: Ganti dengan pemanggilan backend/API untuk menerapkan serangan
-    debugPrint("Applying $selectedAttack ($selectedParam) to $selectedAudio");
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Applied $selectedAttack to $selectedAudio")),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AttackResult(
+          originalAudio: selectedAudio!,
+          attackedAudio: 'attacked_${selectedAudio!}',
+          attackType: selectedAttack!,
+          attackParam: selectedParam!,
+        ),
+      ),
     );
   }
 
@@ -99,11 +146,23 @@ class _AttackPageState extends State<AttackPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF5E8E4),
       appBar: AppBar(
-        title: const Text('Apply Attack'),
+        title: const Text(
+          'Apply Attack',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF411530),
+          ),
+        ),
         backgroundColor: const Color(0xFFF5E8E4),
-        foregroundColor: Color(0xFF411530),
+        foregroundColor: const Color(0xFF411530),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            onPressed: () => _showAttackInfo(context),
+          )
+        ],
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,6 +187,51 @@ class _AttackPageState extends State<AttackPage> {
               decoration: _inputDecoration(),
             ),
             const SizedBox(height: 20),
+            if (selectedAudio != null) ...[
+              const Center(
+                child:
+                    Icon(Icons.headphones, size: 48, color: Color(0xFF411530)),
+              ),
+              const SizedBox(height: 8),
+              Center(
+                child: Column(
+                  children: [
+                    const Text('Selected Audio',
+                        style:
+                            TextStyle(fontSize: 16, color: Color(0xFF411530))),
+                    const SizedBox(height: 4),
+                    Text(
+                      selectedAudio!,
+                      style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF411530)),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Text('00:00'),
+                  Expanded(
+                    child: Slider(
+                      value: 0,
+                      onChanged: (val) {},
+                      min: 0,
+                      max: 30,
+                      activeColor: Colors.redAccent,
+                      inactiveColor: Colors.grey.shade300,
+                    ),
+                  ),
+                  const Text('00:30'),
+                ],
+              ),
+              const Center(
+                child: Icon(Icons.play_arrow, size: 32, color: Colors.black87),
+              ),
+              const SizedBox(height: 24),
+            ],
             const Text(
               'Select Attack Type',
               style: TextStyle(
@@ -175,7 +279,7 @@ class _AttackPageState extends State<AttackPage> {
                 decoration: _inputDecoration(),
               ),
             ],
-            const Spacer(),
+            const SizedBox(height: 24),
             ElevatedButton.icon(
               onPressed: _applyAttack,
               icon: const Icon(Icons.shield),
