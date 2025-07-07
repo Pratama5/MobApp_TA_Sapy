@@ -14,6 +14,7 @@ import 'package:wavemark_app_v1/Library/UploadImagePage.dart';
 import 'package:wavemark_app_v1/Page/EmbeddingPage.dart';
 import 'package:wavemark_app_v1/Page/ExtractionPage.dart';
 import 'package:wavemark_app_v1/Page/Home.dart';
+import 'package:wavemark_app_v1/Page/Attackpage.dart';
 import 'package:wavemark_app_v1/Etc/ProfilePage.dart';
 import 'package:wavemark_app_v1/Etc/SettingsPage.dart';
 import 'package:wavemark_app_v1/Library/library_screen.dart';
@@ -58,6 +59,7 @@ class MyApp extends StatelessWidget {
         '/uploadAudio': (context) => const UploadAudioPage(),
         '/uploadImage': (context) => const UploadImagePage(),
         '/hidden': (context) => const HiddenUpload(),
+        '/attack': (context) => const AttackPage(),
       },
     );
   }
