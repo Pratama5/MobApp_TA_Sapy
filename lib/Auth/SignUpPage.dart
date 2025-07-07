@@ -27,15 +27,12 @@ class _SignUpPageState extends State<SignUpPage> {
   Future<void> _handleUserProfile(User user) async {
     if (!mounted) return;
 
-    // Check if a profile already exists for the new user
     final profileResponse = await Supabase.instance.client
         .from('profiles')
-        .select('id') // We only need to check for existence
+        .select('id')
         .eq('id', user.id)
         .maybeSingle();
 
-    // If profile doesn't exist, it's a new user. Direct them to create one.
-    // If it exists, they are a returning user.
     if (profileResponse == null) {
       Navigator.pushReplacement(
         context,
@@ -46,7 +43,6 @@ class _SignUpPageState extends State<SignUpPage> {
     }
   }
 
-// Replace your old _handleGoogleSignIn with this
   Future<void> _handleGoogleSignIn() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
@@ -54,7 +50,6 @@ class _SignUpPageState extends State<SignUpPage> {
     try {
       final googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
-        // User cancelled the sign-in
         if (mounted) setState(() => _isLoading = false);
         return;
       }
@@ -64,14 +59,12 @@ class _SignUpPageState extends State<SignUpPage> {
         throw Exception("Google Sign-In failed: Missing ID Token.");
       }
 
-      // Sign in to Supabase with the Google ID token
       final response = await Supabase.instance.client.auth.signInWithIdToken(
         provider: OAuthProvider.google,
         idToken: googleAuth.idToken!,
       );
 
       if (response.user != null) {
-        // After successful Supabase auth, handle the profile check and navigation
         await _handleUserProfile(response.user!);
       } else {
         throw Exception('Supabase Google sign-up failed: user is null.');

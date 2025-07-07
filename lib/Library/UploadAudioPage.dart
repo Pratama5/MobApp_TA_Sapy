@@ -45,7 +45,7 @@ class _UploadAudioPageState extends State<UploadAudioPage> {
   Future<void> _pickAudioFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['mp3', 'wav', 'm4a'],
+      allowedExtensions: ['wav'],
     );
 
     if (result != null && result.files.single.path != null) {

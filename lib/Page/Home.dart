@@ -121,11 +121,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _loadProfileData();
   }
 
-  // --- New method to load profile data ---
   Future<void> _loadProfileData() async {
     if (!mounted) return;
-    // Don't set isLoading to true if it's a background refresh,
-    // unless it's the initial load.
     if (_userName == 'User' && _email == '') {
       // Simple check for initial load
       setState(() => _isLoadingProfile = true);
@@ -142,15 +139,11 @@ class _HomeScreenState extends State<HomeScreen> {
           _bio = null;
           _isLoadingProfile = false;
         });
-        // It's unusual for HomeScreen to have a null user, usually protected by auth guard.
-        // If this happens, consider redirecting.
-        // Navigator.of(context).pushReplacementNamed('/login');
       }
       return;
     }
 
     final String authEmail = user.email ?? 'No email';
-    // Initialize with fallbacks from auth metadata first
     String profileDisplayName =
         user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? 'User';
     String? profileAvatarUrl = user.userMetadata?['avatar_url'];
@@ -190,12 +183,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // final user = Supabase.instance.client.auth.currentUser; // Now fetched in _loadProfileData
-    // final metadata = user?.userMetadata ?? {}; // Now fetched in _loadProfileData
-    // final userName = ... // Now use _userName state variable
-    // final email = ...    // Now use _email state variable
-    // final bio = ...      // Now use _bio state variable
-    // final avatarUrl = ... // Now use _avatarUrl state variable
     final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(

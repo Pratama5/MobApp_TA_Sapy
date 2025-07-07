@@ -70,11 +70,10 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
         if (!mounted) return;
         setState(() => isPlaying = state.playing);
       });
-      // Wait for player to be ready or have a duration before setting isLoadingAudio to false
-      await _player.load(); // Ensure player is ready
+
+      await _player.load();
     } catch (e) {
       print("Error loading audio in EmbeddingResultScreen: $e");
-      // Optionally, show an error message to the user
     } finally {
       if (mounted) {
         setState(() {
@@ -83,7 +82,6 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
       }
     }
   }
-  // Inside _EmbeddingResultScreenState class
 
   Future<void> _launchSingleUrl(String? url, String fileTypeDescription) async {
     final scaffoldMessenger =

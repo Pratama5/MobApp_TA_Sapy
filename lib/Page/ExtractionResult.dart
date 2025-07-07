@@ -133,27 +133,18 @@ class ExtractionResultScreen extends StatelessWidget {
               const SizedBox(height: 15),
               Center(
                 child: Container(
-                  // You can adjust this width and height to your preferred fixed size
                   width: 200,
                   height: 200,
                   decoration: BoxDecoration(
-                    // Debugging background color removed
-                    // color: Colors.blue.withOpacity(0.3),
-                    // Keeping the border as requested. You can change its color and width.
-                    border: Border.all(
-                        color: Color(0xFF411530),
-                        width:
-                            1), // Change Colors.red to your desired border color
+                    border: Border.all(color: Color(0xFF411530), width: 1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(
-                        11), // Adjust if border width changes
+                    borderRadius: BorderRadius.circular(11),
                     child: Image.network(
                       imageUrl,
                       fit: BoxFit.contain,
-                      filterQuality: FilterQuality
-                          .none, // Keeping this for clear, pixelated scaling
+                      filterQuality: FilterQuality.none,
                       loadingBuilder: (BuildContext context, Widget child,
                           ImageChunkEvent? loadingProgress) {
                         if (loadingProgress == null) {

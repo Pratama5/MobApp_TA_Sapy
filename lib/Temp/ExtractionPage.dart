@@ -32,10 +32,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
   Duration _position = Duration.zero;
   bool _isPlaying = false;
   bool _isAudioLoading = false;
-
-  // --- MODIFICATION: Separate loading states for each button ---
   bool _isExtracting = false;
-  bool _isExtractingDL = false; // New state for the DL button
 
   List<Map<String, String>> audioList = [];
 
@@ -58,12 +55,6 @@ class _ExtractionPageState extends State<ExtractionPage> {
       if (!mounted) return;
       setState(() => _isPlaying = state.playing);
     });
-  }
-
-  @override
-  void dispose() {
-    _player.dispose();
-    super.dispose();
   }
 
   Future<void> loadDropdownData() async {
@@ -91,6 +82,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
   }
 
   Future<void> _fetchAudioWatermarkDetails(String audioFileName) async {
+    // ... (your existing _fetchAudioWatermarkDetails method is fine) ...
     try {
       final response = await Supabase.instance.client
           .from('audio_watermarked')
@@ -100,11 +92,13 @@ class _ExtractionPageState extends State<ExtractionPage> {
           .maybeSingle();
 
       if (response != null && response.isNotEmpty) {
+        // Check if response is not null and not empty
         if (mounted) {
           setState(() {
             _fetchedMethod = response['method'] as String?;
             _fetchedSubband = response['subband'] as int?;
             _fetchedBit = response['bit'] as int?;
+            // Ensure alfass is correctly parsed as double
             var alfassValue = response['alfass'];
             if (alfassValue is num) {
               _fetchedAlfass = alfassValue.toDouble();
@@ -116,6 +110,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
           });
         }
       } else {
+        print('No details found for $audioFileName in audio_watermarked');
         if (mounted) {
           setState(() {
             _fetchedMethod = "N/A";
@@ -141,13 +136,32 @@ class _ExtractionPageState extends State<ExtractionPage> {
     }
   }
 
+  Future<List<String>> fetchFileNamesFromSupabase(String folderPath) async {
+    // ... (your existing fetchFileNamesFromSupabase method is fine) ...
+    final response = await Supabase.instance.client.storage
+        .from('watermarked')
+        .list(path: folderPath);
+
+    if (response.isEmpty) return [];
+
+    final filenames = response
+        .where(
+            (item) => item.name.endsWith('.wav') || item.name.endsWith('.mp3'))
+        .map((item) => item.name)
+        .toList();
+
+    return filenames;
+  }
+
   String _formatDuration(Duration d) {
+    // ... (your existing _formatDuration method is fine) ...
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$m:$s';
   }
 
   InputDecoration _inputDecoration() {
+    // ... (your existing _inputDecoration method is fine) ...
     return InputDecoration(
       filled: true,
       fillColor: Colors.white,
@@ -158,10 +172,11 @@ class _ExtractionPageState extends State<ExtractionPage> {
       ),
     );
   }
+  // ... inside _ExtractionPageState class ...
 
   Future<void> _showConnectionErrorDialog(
       String specificMessage, String serverIpUsed) async {
-    if (!mounted) return;
+    if (!mounted) return; // Check if the widget is still in the tree
 
     showDialog(
       context: context,
@@ -175,9 +190,9 @@ class _ExtractionPageState extends State<ExtractionPage> {
           TextButton(
             child: const Text('Go to Settings'),
             onPressed: () {
-              Navigator.pop(dialogContext);
+              Navigator.pop(dialogContext); // Close this dialog first
               Navigator.push(
-                context,
+                context, // Use the original page's context for navigation
                 MaterialPageRoute(builder: (context) => const SettingsPage()),
               );
             },
@@ -191,7 +206,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
     );
   }
 
-  Future<void> _performExtraction({required bool isDLExtraction}) async {
+  Future<void> _startExtraction() async {
     if (selectedAudioUrl == null || selectedAudio == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please select an audio file first.")),
@@ -199,13 +214,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
       return;
     }
 
-    setState(() {
-      if (isDLExtraction) {
-        _isExtractingDL = true;
-      } else {
-        _isExtracting = true;
-      }
-    });
+    setState(() => _isExtracting = true);
 
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) {
@@ -214,19 +223,15 @@ class _ExtractionPageState extends State<ExtractionPage> {
             content:
                 Text("User not authenticated. Cannot perform extraction.")),
       );
-      if (mounted) {
-        setState(() {
-          _isExtracting = false;
-          _isExtractingDL = false;
-        });
-      }
+      if (mounted) setState(() => _isExtracting = false); // Check mounted
       return;
     }
 
+    // --- FETCH SERVER IP FROM AppSettings ---
     final String serverIp = await AppSettings.getServerIp();
-    // Determine the endpoint based on the flag
-    final String endpoint = isDLExtraction ? "/extract-dl" : "/extract";
-    final uri = Uri.parse("http://$serverIp:8000$endpoint");
+    // --- END FETCH SERVER IP ---
+
+    final uri = Uri.parse("http://$serverIp:8000/extract"); // Use dynamic IP
 
     final payload = {
       "audio_url": selectedAudioUrl,
@@ -234,18 +239,18 @@ class _ExtractionPageState extends State<ExtractionPage> {
       "uploaded_by": userId,
     };
 
+    // Capture ScaffoldMessenger before async calls if context might change
     final scaffoldMessenger = ScaffoldMessenger.of(context);
 
     try {
-      print(
-          "Sending extraction request to $uri with payload: ${jsonEncode(payload)}");
+      print("Sending extraction request to $uri with payload: $payload");
       final response = await http
           .post(
             uri,
             headers: {"Content-Type": "application/json"},
             body: jsonEncode(payload),
           )
-          .timeout(const Duration(seconds: 300));
+          .timeout(const Duration(seconds: 300)); // Keep or adjust timeout
 
       if (response.statusCode == 200) {
         final result = jsonDecode(response.body);
@@ -258,10 +263,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
               MaterialPageRoute(
                 builder: (context) => ExtractionResultScreen(
                   imageUrl: watermarkUrl,
-                  // Use a different title for the result page for clarity
-                  watermark: isDLExtraction
-                      ? "Deep Learning Method"
-                      : _fetchedMethod ?? "N/A",
+                  watermark: _fetchedMethod ?? "N/A",
                   subband: _fetchedSubband ?? 0,
                   bit: _fetchedBit ?? 0,
                   alfass: _fetchedAlfass?.toString() ?? "N/A",
@@ -272,6 +274,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
             );
           }
         } else {
+          // Server responded with 200 OK, but a logical error in the payload
           String serverErrorMessage =
               result["message"] ?? 'Unknown server error';
           print("Server logic error during extraction: $serverErrorMessage");
@@ -280,6 +283,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
           );
         }
       } else {
+        // HTTP status code is not 200
         String httpErrorMessage = "Server error: ${response.statusCode}.";
         if (response.body.isNotEmpty) {
           try {
@@ -290,39 +294,58 @@ class _ExtractionPageState extends State<ExtractionPage> {
             httpErrorMessage += " Details: ${response.body}";
           }
         }
-        _showConnectionErrorDialog(httpErrorMessage, serverIp);
+        print(httpErrorMessage);
+
+        if (response.statusCode == 404 || response.statusCode == 503) {
+          // These often indicate server/IP issues
+          _showConnectionErrorDialog(
+              "Server at $serverIp returned ${response.statusCode}. It might be an incorrect endpoint or the server is temporarily down.",
+              serverIp);
+        } else {
+          // Other HTTP errors (e.g., 400, 401, 500 from server processing)
+          _showConnectionErrorDialog(
+              // Or a more generic error dialog
+              "An error occurred (HTTP ${response.statusCode}). Details: ${response.body.isNotEmpty ? response.body : 'No additional details.'}",
+              serverIp);
+        }
       }
-    } on TimeoutException {
+    } on TimeoutException catch (e) {
+      print("Extraction timed out connecting to $serverIp: $e");
       _showConnectionErrorDialog(
-          "The connection to the server timed out.", serverIp);
+          "The connection to the server at $serverIp timed out.", serverIp);
     } on SocketException catch (e) {
+      print("Extraction SocketException for $serverIp: $e");
       _showConnectionErrorDialog(
-          "Could not reach the server. It might be offline or the IP is incorrect. (Details: ${e.message})",
+          "Could not reach the server at $serverIp. It might be offline or the IP is incorrect. (Details: ${e.message})",
           serverIp);
     } on http.ClientException catch (e) {
+      print("Extraction ClientException for $serverIp: $e");
       _showConnectionErrorDialog(
-          "A network client error occurred. (Details: ${e.message})", serverIp);
+          "A network client error occurred when trying to reach $serverIp. (Details: ${e.message})",
+          serverIp);
     } catch (e) {
-      _showConnectionErrorDialog("An unexpected error occurred.", serverIp);
-    } finally {
-      // Always reset loading states
-      if (mounted) {
-        setState(() {
-          _isExtracting = false;
-          _isExtractingDL = false;
-        });
-      }
+      // Generic catch-all
+      print("Generic extraction error for $serverIp: $e");
+      _showConnectionErrorDialog(
+          "An unexpected error occurred while trying to connect to $serverIp.",
+          serverIp);
     }
+
+    if (mounted) setState(() => _isExtracting = false);
+  }
+
+  @override
+  void dispose() {
+    _player.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // ... (your existing build method is fine, ensure selectedAudio handling is robust) ...
     final audioName = selectedAudio != null
         ? path.basename(selectedAudio!)
         : 'No file selected';
-
-    // A flag to disable buttons if any extraction is happening
-    final bool isAnyExtractionRunning = _isExtracting || _isExtractingDL;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5E8E4),
@@ -362,6 +385,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
                   .toList(),
               onChanged: (value) async {
                 if (value == null) return;
+                // Use mounted check before async gap for setState
                 if (!mounted) return;
                 setState(() {
                   selectedAudio = value;
@@ -369,6 +393,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
                   _isAudioLoading = true;
                   _position = Duration.zero;
                   _duration = Duration.zero;
+
                   _fetchedMethod = null;
                   _fetchedSubband = null;
                   _fetchedBit = null;
@@ -384,12 +409,14 @@ class _ExtractionPageState extends State<ExtractionPage> {
                 } catch (e) {
                   print("Failed to load audio: $e");
                   if (mounted) {
+                    // Check mounted
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text("Failed to load audio: $value")),
                     );
                   }
                 }
                 if (mounted) {
+                  // Check mounted
                   setState(() {
                     _isAudioLoading = false;
                   });
@@ -399,7 +426,6 @@ class _ExtractionPageState extends State<ExtractionPage> {
             ),
             const SizedBox(height: 30),
             if (selectedAudio != null) ...[
-              // This is the audio player UI
               Column(
                 children: [
                   const Icon(Icons.headphones,
@@ -416,7 +442,6 @@ class _ExtractionPageState extends State<ExtractionPage> {
                       fontWeight: FontWeight.bold,
                       color: Colors.black87,
                     ),
-                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
@@ -484,12 +509,13 @@ class _ExtractionPageState extends State<ExtractionPage> {
                 ),
               ),
             ],
-            // --- MODIFICATION: Original Extraction Button ---
             ElevatedButton.icon(
-              onPressed: isAnyExtractionRunning || selectedAudioUrl == null
+              onPressed: _isExtracting ||
+                      selectedAudio == null ||
+                      selectedAudioUrl == null
                   ? null
-                  : () => _performExtraction(isDLExtraction: false),
-              icon: _isExtracting // Use the original loading state
+                  : _startExtraction,
+              icon: _isExtracting
                   ? Container(
                       width: 24,
                       height: 24,
@@ -500,49 +526,17 @@ class _ExtractionPageState extends State<ExtractionPage> {
                       ),
                     )
                   : const Icon(Icons.find_in_page),
-              label: Text(
-                  _isExtracting ? 'Extracting...' : 'Extract Watermark (SS)'),
+              label:
+                  Text(_isExtracting ? 'Extracting...' : 'Extract Watermark'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF5E2A4D),
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                textStyle:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                textStyle: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold), // Ensure consistent style
               ),
             ),
-            const SizedBox(height: 12), // Spacing between buttons
-
-            // --- NEW: Deep Learning Extraction Button ---
-            ElevatedButton.icon(
-              onPressed: isAnyExtractionRunning || selectedAudioUrl == null
-                  ? null
-                  // Call the generic function with the DL flag
-                  : () => _performExtraction(isDLExtraction: true),
-              icon: _isExtractingDL // Use the new loading state
-                  ? Container(
-                      width: 24,
-                      height: 24,
-                      padding: const EdgeInsets.all(2.0),
-                      child: const CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 3,
-                      ),
-                    )
-                  // A new icon for the DL button
-                  : const Icon(Icons.psychology_alt_outlined),
-              label: Text(_isExtractingDL
-                  ? 'Extracting...'
-                  : 'Extract with Deep Learning'),
-              style: ElevatedButton.styleFrom(
-                // A slightly different color to distinguish the button
-                backgroundColor: const Color(0xFFD1512D),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                textStyle:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-            // --- END NEW BUTTON ---
             const SizedBox(height: 20),
             if (_status.isNotEmpty)
               Text(

@@ -138,13 +138,11 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
 
     // --- FETCH SERVER IP FROM SETTINGS ---
     final String serverIp = await AppSettings.getServerIp();
-    // --- END FETCH SERVER IP ---
-
     try {
       print(
           "Sending to server (http://$serverIp:8000): audio_url=$audioUrl, img_url=$imageUrl, method_identifier=$methodIdentifier, subband=$subband, bit=$bit, alfass=$alfass, uploaded_by=$userId");
       final response = await http.post(
-        Uri.parse("http://$serverIp:8000/embed"), // IP is now dynamic
+        Uri.parse("http://$serverIp:8000/embed"), // Dynamic server IP
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $accessToken',
@@ -162,7 +160,7 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         print("Server response: $data");
-        return data; // Success case should ideally also have a "status": "success" from server
+        return data;
       } else {
         String errorType =
             "server_error"; // Default for server-side HTTP errors

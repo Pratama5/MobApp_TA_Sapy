@@ -56,41 +56,31 @@ class _ProfilePageState extends State<ProfilePage> {
           avatarUrl = null;
           bio = null;
         });
-        // Optionally navigate to login or handle appropriately
-        // Navigator.of(context).pushReplacementNamed('/login');
       }
       return;
     }
 
-    // Always get email from the auth user
     final String authEmail = user.email ?? 'No email provided';
 
-    // Initialize with fallbacks from auth metadata first
-    String profileDisplayName = user.userMetadata?['full_name'] ??
-        user.userMetadata?['name'] ??
-        'User'; // Fallback to 'User' if names are null
+    String profileDisplayName =
+        user.userMetadata?['full_name'] ?? user.userMetadata?['name'] ?? 'User';
     String? profileAvatarUrl = user.userMetadata?['avatar_url'];
-    String? profileBio; // Bio is less likely to be in auth metadata
+    String? profileBio;
 
     try {
-      // Fetch the profile from your 'profiles' table
       final profileResponse = await Supabase.instance.client
           .from('profiles')
-          .select('display_name, avatar_url, bio') // Select only needed fields
+          .select('display_name, avatar_url, bio')
           .eq('id', user.id)
           .maybeSingle();
 
       if (profileResponse != null) {
-        // Profile exists in 'profiles' table, prioritize its data
         profileDisplayName =
             profileResponse['display_name'] ?? profileDisplayName;
         profileAvatarUrl = profileResponse['avatar_url'] ??
             profileAvatarUrl; // Prioritize profile's avatar_url
         profileBio = profileResponse['bio'];
       } else {
-        // Profile doesn't exist in 'profiles' table.
-        // We've already set initial values from user.user_metadata.
-        // This might be a good place to log or consider if user should be forced to EditProfileScreen
         print(
             "ProfilePage: No profile found in 'profiles' table for user ${user.id}. Using auth metadata as fallback.");
       }
