@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher_string.dart';
@@ -169,6 +171,7 @@ class _LibraryImagePageState extends State<LibraryImagePage> {
                       final image = imageFiles[index];
                       final url = image['url'];
                       final filename = image['filename'];
+                      final isPublic = image['is_public'] == true;
 
                       return GestureDetector(
                         onTap: () async {
@@ -182,26 +185,57 @@ class _LibraryImagePageState extends State<LibraryImagePage> {
                               ),
                             ),
                           );
-                          // If the result is true, it means a deletion happened.
                           if (result == true && mounted) {
                             setState(() {
-                              isLoading =
-                                  true; // Show loading indicator while refetching
+                              isLoading = true;
                             });
-                            fetchImageFiles(); // Refresh the list!
+                            fetchImageFiles();
                           }
                         },
                         onLongPress: () =>
                             showImageOptions(context, url, filename, image),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            url,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              color: Colors.grey[300],
-                              child: const Icon(Icons.broken_image, size: 40),
-                            ),
+                          // Use a Stack to layer the ribbon on top of the image
+                          child: Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              // The image is the bottom layer
+                              Image.network(
+                                url,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Container(
+                                  color: Colors.grey[300],
+                                  child:
+                                      const Icon(Icons.broken_image, size: 40),
+                                ),
+                              ),
+                              // Conditionally add the ribbon if isPublic is true
+                              if (isPublic)
+                                Positioned(
+                                  top:
+                                      15, // Adjust position to create the angle
+                                  right: -35,
+                                  child: Transform.rotate(
+                                    angle: pi / 4, // 45 degree angle
+                                    child: Container(
+                                      width: 120,
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 4),
+                                      color: const Color(0xFFD1512D),
+                                      alignment: Alignment.center,
+                                      child: const Text(
+                                        'DeepLearning',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       );

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:wavemark_app_v1/Etc/SettingsPage.dart';
+import 'package:wavemark_app_v1/Etc/QueueMonitor.dart';
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:async';
@@ -247,8 +249,26 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
     );
   }
 
+  Future<Map<String, dynamic>?> fetchMetadata(
+      String filename, String serverIp) async {
+    try {
+      final response = await http.get(
+        Uri.parse("http://$serverIp:8000/meta/watermarked/$filename"),
+      );
+
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        if (decoded['status'] == 'success') {
+          return decoded['metadata'];
+        }
+      }
+    } catch (e) {
+      print("Error fetching metadata: $e");
+    }
+    return null; // Return null on failure
+  }
+
   void onProceed() async {
-    // ... (your existing onProceed method, but ensure alfassController handling is robust)
     if (selectedAudio == null ||
         selectedWatermark == null ||
         selectedMethod == null ||
@@ -259,8 +279,8 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
       );
       return;
     }
-    selectedAlfass = double.tryParse(alfassController.text.trim()) ?? 0.015;
 
+    selectedAlfass = double.tryParse(alfassController.text.trim()) ?? 0.015;
     if (alfassController.text.trim().isEmpty) {
       alfassController.text = selectedAlfass.toString();
     }
@@ -289,12 +309,6 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
 
     if (proceed != true) return;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
-    );
-
     final String methodIdentifierToSend = _getMethodIdentifier(selectedMethod);
 
     final result = await sendToLocalServer(
@@ -306,58 +320,56 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
       alfass: selectedAlfass,
     );
 
-    if (mounted) Navigator.of(context).pop(); // Close loading dialog
+    if (result['status'] == 'queued') {
+      final taskId = result['task_id'];
+      final serverIp = await AppSettings.getServerIp();
+      final finalResult = await showQueueDialog(
+          context: context,
+          taskId: taskId,
+          serverIp: serverIp,
+          taskTitle: "Embedding Task");
 
-    // --- MODIFIED DIALOG LOGIC for result ---
-    if (result['status'] == 'success') {
-      // Your existing success dialog logic
-      showDialog(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Success'),
-          content: Text(
-              'Watermark successfully embedded.\nSNR: ${result['snr'] ?? "N/A"}'),
-          actions: [
-            TextButton(
-              child: const Text('Next'),
-              onPressed: () {
-                if (!mounted) return;
-                Navigator.pop(dialogContext); // Close current dialog
+      if (finalResult == null || finalResult['status'] != 'success') {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: const Text('Error'),
+            content: const Text('Task finished but result could not be found.'),
+            actions: [
+              TextButton(
+                child: const Text('Close'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
 
-                String watermarkedAudioUrl = result['audio_url'] ?? '';
-                String keyUrlFromServer = result['key_url'] ?? '';
-                double? snrFromServer = (result['snr'] as num?)?.toDouble();
-                String actualWatermarkedFilename =
-                    result['watermarked_filename'] ?? "Unknown Audio File";
+      // Extract data and navigate
+      String audioUrl = finalResult['audio_url'] ?? '';
+      String keyUrl = finalResult['key_url'] ?? '';
+      double? snr = (finalResult['snr'] as num?)?.toDouble();
+      String filename = finalResult['watermarked_filename'] ?? 'Unknown';
 
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => EmbeddingResultScreen(
-                      audioUrl: watermarkedAudioUrl,
-                      audioFilename: actualWatermarkedFilename,
-                      keyUrl: keyUrlFromServer,
-                      snr: snrFromServer,
-                      method: selectedMethod!,
-                      bit: selectedBit!,
-                      subband: selectedSubband!,
-                      alfass: selectedAlfass,
-                    ),
-                  ),
-                );
-              },
-            ),
-            TextButton(
-              child: const Text('Close'),
-              onPressed: () => Navigator.pop(dialogContext),
-            ),
-          ],
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => EmbeddingResultScreen(
+            audioUrl: audioUrl,
+            audioFilename: filename,
+            keyUrl: keyUrl,
+            snr: snr,
+            method: selectedMethod!,
+            bit: selectedBit!,
+            subband: selectedSubband!,
+            alfass: selectedAlfass,
+          ),
         ),
       );
-    } else {
-      // status == 'error'
+    } else if (result['status'] == 'error') {
+      // Error from server
       String errorMessage = result['message'] ?? 'An unknown error occurred.';
       String errorType = result['error_type'] ?? 'generic_error';
-      // final String serverIpUsed = await AppSettings.getServerIp(); // No need to fetch again, message has it
 
       if (errorType == 'connection_error') {
         showDialog(
@@ -365,22 +377,19 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
           builder: (dialogContext) => AlertDialog(
             title: const Text('Connection Failed'),
             content: SingleChildScrollView(
-              // In case error message is long
-              child: Text(
-                  // The message from sendToLocalServer already contains IP and error details
-                  errorMessage +
-                      "\n\nPlease check your network and ensure the Server IP in settings is correct."),
+              child: Text(errorMessage +
+                  "\n\nPlease check your network and ensure the Server IP in settings is correct."),
             ),
             actions: [
               TextButton(
                 child: const Text('Go to Settings'),
                 onPressed: () {
-                  Navigator.pop(dialogContext); // Close this error dialog
-                  // Navigate to SettingsPage
+                  Navigator.pop(dialogContext);
                   Navigator.push(
-                    context, // Use the original page's context for navigation
+                    context,
                     MaterialPageRoute(
-                        builder: (context) => const SettingsPage()),
+                      builder: (context) => const SettingsPage(),
+                    ),
                   );
                 },
               ),
@@ -392,7 +401,6 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
           ),
         );
       } else {
-        // Show a more generic error dialog for other types of errors
         showDialog(
           context: context,
           builder: (dialogContext) => AlertDialog(
@@ -408,7 +416,6 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
         );
       }
     }
-    // --- END OF MODIFIED DIALOG LOGIC ---
   }
 
   InputDecoration _inputDecoration() {

@@ -16,7 +16,7 @@ class AboutAppScreen extends StatelessWidget {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Tentang Aplikasi',
+          'About Application',
           style: TextStyle(
             color: Color(0xFF411530),
             fontWeight: FontWeight.bold,
@@ -29,8 +29,8 @@ class AboutAppScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(child: Image.asset('assets/logo_wavemark.png', height: 100)),
-            const SizedBox(height: 25),
+            Center(child: Image.asset('assets/logo_wavemark.png', height: 150)),
+            const SizedBox(height: 10),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -47,15 +47,22 @@ class AboutAppScreen extends StatelessWidget {
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),
-                  Text('Versi 1.0.1'),
+                  Text('Version 1.1.0'),
+                  SizedBox(height: 4),
+                  Text(
+                    'Update!',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                      'Now with Deep Learning based Exraction for faster and more accurate results.'),
                   Divider(height: 24, thickness: 1),
                   Text(
-                    'Aplikasi ini dikembangkan untuk menanamkan watermark pada file audio secara aman dan tak terdengar.'
-                    'Menggunakan metode kombinasi multi-domain yang tahan terhadap berbagai serangan sinyal.',
+                    'This application is designed to securely embed inaudible watermarks into audio files. '
+                    'It utilizes a robust, multi-domain hybrid method that withstands various signal attacks.',
                   ),
                   Divider(height: 24, thickness: 1),
                   Text(
-                    'Pengembang:',
+                    'Developer:',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),
@@ -65,7 +72,7 @@ class AboutAppScreen extends StatelessWidget {
                   Text('• Yesaya Pasaribu'),
                   SizedBox(height: 16),
                   Text(
-                    'Dosen Pembimbing:',
+                    'Supervisor:',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),
@@ -73,7 +80,7 @@ class AboutAppScreen extends StatelessWidget {
                   Text('• Sofia Sa’Idah S.T., M.T.'),
                   Divider(height: 24, thickness: 1),
                   Text(
-                    'Proyek Tugas Akhir - Universitas Telkom',
+                    'Final Project - Universitas Telkom',
                     style: TextStyle(fontStyle: FontStyle.italic),
                   ),
                 ],

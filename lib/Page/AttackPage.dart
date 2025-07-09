@@ -9,7 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:wavemark_app_v1/Etc/app_settings.dart';
 import 'package:wavemark_app_v1/Etc/bottom_nav.dart';
 import 'package:wavemark_app_v1/Etc/SettingsPage.dart';
-import 'package:wavemark_app_v1/Page/AttackResult.dart'; // Make sure this import is correct
+import 'package:wavemark_app_v1/Page/AttackResult.dart';
+import 'package:wavemark_app_v1/Etc/QueueMonitor.dart';
 
 // Data class to hold the structured attack information
 class Attack {
@@ -26,6 +27,13 @@ class AttackPage extends StatefulWidget {
   State<AttackPage> createState() => _AttackPageState();
 }
 
+class AudioFile {
+  final String filename;
+  final String url;
+
+  AudioFile({required this.filename, required this.url});
+}
+
 class _AttackPageState extends State<AttackPage> {
   // --- State Variables ---
   bool _isApplyingAttack = false;
@@ -36,6 +44,9 @@ class _AttackPageState extends State<AttackPage> {
   String? selectedAudioUrl;
   Attack? selectedAttack;
   String? selectedParamName; // The user-friendly parameter name
+  AudioFile? audioToAttack;
+  int? attackType;
+  int? attackParam;
 
   // Data lists for dropdowns
   List<Map<String, String>> audioList = [];
@@ -153,15 +164,9 @@ class _AttackPageState extends State<AttackPage> {
     final String serverIp = await AppSettings.getServerIp();
     final uri = Uri.parse("http://$serverIp:8000/attack");
 
-    // Store the selected values in local variables before the async call.
-    // This makes the code safer and easier to read.
-    final audioToAttack = selectedAudioFile!;
-    final attackType = selectedAttack!;
-    final attackParam = selectedParamName!;
-
     final payload = {
-      "audio_url": audioToAttack['url'],
-      "original_filename": audioToAttack['filename'],
+      "audio_url": selectedAudioFile!['url'],
+      "original_filename": selectedAudioFile!['filename'],
       "attack_type": attackValues[0],
       "attack_param": attackValues[1],
       "uploaded_by": userId,
@@ -182,26 +187,52 @@ class _AttackPageState extends State<AttackPage> {
 
       final result = jsonDecode(response.body);
 
-      if (response.statusCode == 200 && result["status"] == "success") {
+      if (response.statusCode == 200 && result["status"] == "queued") {
+        final taskId = result['task_id'];
+        final finalResult = await showQueueDialog(
+            context: context,
+            taskId: taskId,
+            serverIp: serverIp,
+            taskTitle: 'Applying Attack');
+
+        if (finalResult == null || finalResult['status'] != 'success') {
+          _showConnectionErrorDialog(
+              "Attack task finished, but result could not be found.", serverIp);
+          return;
+        }
+
         if (mounted) {
-          // --- START OF THE FIX ---
-          // 'await' pauses this function until the AttackResult page is closed.
           await Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) => AttackResult(
-                originalAudioName: audioToAttack['filename']!,
-                originalAudioUrl: audioToAttack['url']!,
-                attackedAudioName: result["attacked_filename"],
-                attackedAudioUrl: result["attacked_audio_url"],
-                attackType: attackType.name,
-                attackParam: attackParam,
+                originalAudioName: selectedAudioFile!['filename']!,
+                originalAudioUrl: selectedAudioFile!['url']!,
+                attackedAudioName: finalResult["attacked_filename"],
+                attackedAudioUrl: finalResult["attacked_audio_url"],
+                attackType: selectedAttack!.name,
+                attackParam: selectedParamName!,
               ),
             ),
           );
-          // This line will only run AFTER the user navigates back.
           _resetSelections();
-          // --- END OF THE FIX ---
+        }
+      } else if (response.statusCode == 200 && result["status"] == "success") {
+        if (mounted) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AttackResult(
+                originalAudioName: selectedAudioFile!['filename']!,
+                originalAudioUrl: selectedAudioFile!['url']!,
+                attackedAudioName: result["attacked_filename"],
+                attackedAudioUrl: result["attacked_audio_url"],
+                attackType: selectedAttack!.name,
+                attackParam: selectedParamName!,
+              ),
+            ),
+          );
+          _resetSelections();
         }
       } else {
         _showConnectionErrorDialog(
@@ -233,6 +264,47 @@ class _AttackPageState extends State<AttackPage> {
       _duration = Duration.zero;
       _player.stop();
     });
+  }
+
+  void _showAttackInfo(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFFF5E8E4),
+        title: const Text('Penjelasan Attack',
+            style: TextStyle(color: Color(0xFF411530))),
+        content: const SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Attack adalah modifikasi audio seperti filter, noise, atau kompresi yang dapat merusak watermark.',
+                style: TextStyle(color: Color(0xFF411530)),
+              ),
+              SizedBox(height: 12),
+              Text('• Low Pass Filter: Menghapus frekuensi tinggi.'),
+              // Text('• Band Pass Filter: Menyaring frekuensi tertentu.'),
+              Text('• Requantization: Menurunkan bit-depth audio.'),
+              Text('• Additive Noise: Menambahkan gangguan noise.'),
+              Text('• Resampling: Mengubah sampling rate audio.'),
+              // Text('• Time Scale Modification: Mengubah durasi audio.'),
+              // Text('• Linear Speed Change: Mempercepat atau memperlambat.'),
+              // Text('• Pitch Shifting: Mengubah nada suara.'),
+              // Text('• Equalizer: Mengatur kekuatan frekuensi.'),
+              // Text('• Echo: Menambahkan gema pada audio.'),
+              Text('• MP3 Compression: Mengompres audio ke MP3.'),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child:
+                const Text('Tutup', style: TextStyle(color: Color(0xFF5E2A4D))),
+          ),
+        ],
+      ),
+    );
   }
 
   // --- UI and Widgets ---
@@ -292,6 +364,12 @@ class _AttackPageState extends State<AttackPage> {
                 fontWeight: FontWeight.bold, color: Color(0xFF411530))),
         backgroundColor: const Color(0xFFF5E8E4),
         foregroundColor: const Color(0xFF411530),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.help_outline),
+            onPressed: () => _showAttackInfo(context),
+          )
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -299,7 +377,7 @@ class _AttackPageState extends State<AttackPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // --- Audio Selection ---
-            const Text('1. Select Watermarked Audio',
+            const Text('Select Watermarked Audio',
                 style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -318,6 +396,10 @@ class _AttackPageState extends State<AttackPage> {
                 setState(() {
                   selectedAudioFile = val;
                   selectedAudioUrl = val['url'];
+                  audioToAttack = AudioFile(
+                    filename: val['filename']!,
+                    url: val['url']!,
+                  );
                   _isAudioLoading = true;
                   _position = Duration.zero;
                   _duration = Duration.zero;
@@ -335,7 +417,7 @@ class _AttackPageState extends State<AttackPage> {
 
             // --- Audio Player UI ---
             if (selectedAudioFile != null) ...[
-              Center(
+              const Center(
                   child: Icon(Icons.headphones,
                       size: 48, color: Color(0xFF411530))),
               const SizedBox(height: 8),
@@ -378,7 +460,7 @@ class _AttackPageState extends State<AttackPage> {
             ],
 
             // --- Attack Type Selection ---
-            const Text('2. Select Attack Type',
+            const Text('Select Attack Type',
                 style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
@@ -395,7 +477,7 @@ class _AttackPageState extends State<AttackPage> {
               onChanged: (val) {
                 setState(() {
                   selectedAttack = val;
-                  selectedParamName = null; // Reset param on type change
+                  selectedParamName = null;
                 });
               },
             ),
@@ -403,7 +485,7 @@ class _AttackPageState extends State<AttackPage> {
 
             // --- Attack Parameter Selection ---
             if (selectedAttack != null) ...[
-              const Text('3. Select Attack Parameter',
+              const Text('Select Attack Parameter',
                   style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -417,7 +499,17 @@ class _AttackPageState extends State<AttackPage> {
                     .map((paramName) => DropdownMenuItem(
                         value: paramName, child: Text(paramName)))
                     .toList(),
-                onChanged: (val) => setState(() => selectedParamName = val),
+                onChanged: (val) {
+                  setState(() {
+                    selectedParamName = val;
+
+                    final pair = selectedAttack?.params[val];
+                    if (pair != null && pair.length == 2) {
+                      attackType = pair[0];
+                      attackParam = pair[1];
+                    }
+                  });
+                },
               ),
             ],
             const SizedBox(height: 32),
@@ -433,7 +525,7 @@ class _AttackPageState extends State<AttackPage> {
                       child: const CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 3),
                     )
-                  : const Icon(Icons.shield_outlined),
+                  : const Icon(Icons.whatshot),
               label: Text(_isApplyingAttack ? "Applying..." : "Apply Attack"),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF5E2A4D),

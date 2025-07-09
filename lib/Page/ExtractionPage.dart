@@ -8,8 +8,9 @@ import 'package:path/path.dart' as path;
 import 'package:just_audio/just_audio.dart';
 import 'package:http/http.dart' as http;
 import 'package:wavemark_app_v1/Page/ExtractionResult.dart';
-import 'package:wavemark_app_v1/etc/app_settings.dart';
+import 'package:wavemark_app_v1/Etc/app_settings.dart';
 import 'package:wavemark_app_v1/Etc/SettingsPage.dart';
+import 'package:wavemark_app_v1/Etc/QueueMonitor.dart';
 
 class ExtractionPage extends StatefulWidget {
   const ExtractionPage({super.key});
@@ -20,7 +21,7 @@ class ExtractionPage extends StatefulWidget {
 
 class _ExtractionPageState extends State<ExtractionPage> {
   String _status = '';
-  String? selectedAudio;
+  Map<String, String>? selectedAudio;
   String? selectedAudioUrl;
   String? _fetchedMethod;
   int? _fetchedSubband;
@@ -191,14 +192,18 @@ class _ExtractionPageState extends State<ExtractionPage> {
     );
   }
 
+  // In ExtractionPage.dart
+
   Future<void> _performExtraction({required bool isDLExtraction}) async {
-    if (selectedAudioUrl == null || selectedAudio == null) {
+    if (selectedAudio == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select an audio file first.")),
+        const SnackBar(content: Text("Please select an audio file.")),
       );
       return;
     }
 
+    // START: Activate the correct loading spinner in the UI
+    if (!mounted) return;
     setState(() {
       if (isDLExtraction) {
         _isExtractingDL = true;
@@ -206,119 +211,122 @@ class _ExtractionPageState extends State<ExtractionPage> {
         _isExtracting = true;
       }
     });
+    // END: Activate spinner
 
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content:
-                Text("User not authenticated. Cannot perform extraction.")),
-      );
-      if (mounted) {
-        setState(() {
-          _isExtracting = false;
-          _isExtractingDL = false;
-        });
-      }
-      return;
-    }
-
-    final String serverIp = await AppSettings.getServerIp();
-    // Determine the endpoint based on the flag
-    final String endpoint = isDLExtraction ? "/extract-dl" : "/extract";
-    final uri = Uri.parse("http://$serverIp:8000$endpoint");
-
-    final payload = {
-      "audio_url": selectedAudioUrl,
-      "filename": selectedAudio,
-      "uploaded_by": userId,
-    };
-
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final serverIp = await AppSettings.getServerIp();
 
     try {
-      print(
-          "Sending extraction request to $uri with payload: ${jsonEncode(payload)}");
-      final response = await http
-          .post(
-            uri,
-            headers: {"Content-Type": "application/json"},
-            body: jsonEncode(payload),
-          )
-          .timeout(const Duration(seconds: 300));
-
-      if (response.statusCode == 200) {
-        final result = jsonDecode(response.body);
-        if (result["status"] == "success") {
-          final String watermarkUrl = result["watermark_url"];
-          final dynamic ber = result["ber"];
-          if (mounted) {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => ExtractionResultScreen(
-                  imageUrl: watermarkUrl,
-                  // Use a different title for the result page for clarity
-                  watermark: isDLExtraction
-                      ? "Deep Learning Method"
-                      : _fetchedMethod ?? "N/A",
-                  subband: _fetchedSubband ?? 0,
-                  bit: _fetchedBit ?? 0,
-                  alfass: _fetchedAlfass?.toString() ?? "N/A",
-                  actualBer: ber?.toString() ?? "N/A",
-                  status: "success",
-                ),
-              ),
-            );
-          }
-        } else {
-          String serverErrorMessage =
-              result["message"] ?? 'Unknown server error';
-          print("Server logic error during extraction: $serverErrorMessage");
-          scaffoldMessenger.showSnackBar(
-            SnackBar(content: Text("Extraction Error: $serverErrorMessage")),
+      final session = Supabase.instance.client.auth.currentSession;
+      if (session == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  "Authentication Error: Not logged in. Please log in again."),
+              backgroundColor: Colors.red,
+            ),
           );
         }
-      } else {
-        String httpErrorMessage = "Server error: ${response.statusCode}.";
-        if (response.body.isNotEmpty) {
-          try {
-            final errorResult = jsonDecode(response.body);
-            httpErrorMessage +=
-                " Details: ${errorResult['message'] ?? response.body}";
-          } catch (_) {
-            httpErrorMessage += " Details: ${response.body}";
-          }
+        return;
+      }
+      final userId = session.user.id;
+
+      final endpoint = isDLExtraction ? "extract-dl" : "extract";
+      final audioFilename = selectedAudio!['filename'] ?? '';
+      final audioUrl = selectedAudio!['url'] ?? '';
+
+      final response = await http
+          .post(
+            Uri.parse("http://$serverIp:8000/$endpoint"),
+            headers: {"Content-Type": "application/json"},
+            body: jsonEncode({
+              "filename": audioFilename,
+              "audio_url": audioUrl,
+              "uploaded_by": userId,
+            }),
+          )
+          .timeout(const Duration(seconds: 10)); // Add a timeout for robustness
+
+      if (!mounted) return; // Check if widget is still active after the request
+
+      final result = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && result['status'] == 'queued') {
+        final taskId = result['task_id'];
+        final finalResult = await showQueueDialog(
+            context: context,
+            taskId: taskId,
+            serverIp: serverIp,
+            taskTitle: 'Extracting Watermark');
+
+        if (!mounted) return;
+
+        if (finalResult == null || finalResult['status'] != 'success') {
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              title: const Text('Extraction Failed'),
+              content: Text(finalResult?['message'] ??
+                  'Task finished but the result could not be found.'),
+              actions: [
+                TextButton(
+                  child: const Text('Close'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
+            ),
+          );
+          return;
         }
-        _showConnectionErrorDialog(httpErrorMessage, serverIp);
+
+        final String imageUrl = finalResult['watermark_url'] ?? '';
+        final String actualBer =
+            (finalResult['ber'] as num?)?.toString() ?? "N/A";
+
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => ExtractionResultScreen(
+              imageUrl: imageUrl,
+              actualBer: actualBer,
+              watermark: _fetchedMethod ?? "N/A",
+              subband: _fetchedSubband ?? 0,
+              bit: _fetchedBit ?? 0,
+              alfass: _fetchedAlfass?.toString() ?? "N/A",
+              status: 'success',
+            ),
+          ),
+        );
+      } else {
+        _showConnectionErrorDialog(
+            result['message'] ?? "An unknown server error occurred.", serverIp);
       }
     } on TimeoutException {
       _showConnectionErrorDialog(
           "The connection to the server timed out.", serverIp);
-    } on SocketException catch (e) {
+    } on SocketException {
       _showConnectionErrorDialog(
-          "Could not reach the server. It might be offline or the IP is incorrect. (Details: ${e.message})",
+          "Could not reach the server. It might be offline or the IP is incorrect.",
           serverIp);
-    } on http.ClientException catch (e) {
-      _showConnectionErrorDialog(
-          "A network client error occurred. (Details: ${e.message})", serverIp);
     } catch (e) {
-      _showConnectionErrorDialog("An unexpected error occurred.", serverIp);
+      // Catch any other unexpected errors
+      _showConnectionErrorDialog(
+          "An unexpected error occurred: ${e.toString()}", serverIp);
     } finally {
-      // Always reset loading states
+      // FINALLY: This block ALWAYS runs, ensuring the UI is never left frozen
       if (mounted) {
         setState(() {
           _isExtracting = false;
           _isExtractingDL = false;
         });
       }
+      // END: Deactivate spinners
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final audioName = selectedAudio != null
-        ? path.basename(selectedAudio!)
+        ? path.basename(selectedAudio!['filename'] ?? '')
         : 'No file selected';
 
     // A flag to disable buttons if any extraction is happening
@@ -352,20 +360,20 @@ class _ExtractionPageState extends State<ExtractionPage> {
               ),
             ),
             const SizedBox(height: 5),
-            DropdownButtonFormField<String>(
+            DropdownButtonFormField<Map<String, String>>(
               hint: const Text("Select Audio"),
               value: selectedAudio,
               isExpanded: true,
               items: audioList
                   .map((item) => DropdownMenuItem(
-                      value: item['filename'], child: Text(item['filename']!)))
+                      value: item, child: Text(item['filename']!)))
                   .toList(),
               onChanged: (value) async {
                 if (value == null) return;
                 if (!mounted) return;
                 setState(() {
                   selectedAudio = value;
-                  selectedAudioUrl = getPublicAudioUrl(value);
+                  selectedAudioUrl = getPublicAudioUrl(value['filename']!);
                   _isAudioLoading = true;
                   _position = Duration.zero;
                   _duration = Duration.zero;
@@ -375,7 +383,7 @@ class _ExtractionPageState extends State<ExtractionPage> {
                   _fetchedAlfass = null;
                 });
 
-                await _fetchAudioWatermarkDetails(value);
+                await _fetchAudioWatermarkDetails(value['filename']!);
 
                 try {
                   if (selectedAudioUrl != null) {
@@ -500,8 +508,8 @@ class _ExtractionPageState extends State<ExtractionPage> {
                       ),
                     )
                   : const Icon(Icons.find_in_page),
-              label: Text(
-                  _isExtracting ? 'Extracting...' : 'Extract Watermark (SS)'),
+              label:
+                  Text(_isExtracting ? 'Extracting...' : 'Extract Watermark'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF5E2A4D),
                 foregroundColor: Colors.white,
