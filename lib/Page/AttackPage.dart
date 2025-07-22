@@ -271,28 +271,28 @@ class _AttackPageState extends State<AttackPage> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: const Color(0xFFF5E8E4),
-        title: const Text('Penjelasan Attack',
+        title: const Text('Attack Explanation',
             style: TextStyle(color: Color(0xFF411530))),
         content: const SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Attack adalah modifikasi audio seperti filter, noise, atau kompresi yang dapat merusak watermark.',
+                'Attacks are audio modifications such as filters, noise, or compression that can damage the watermark.',
                 style: TextStyle(color: Color(0xFF411530)),
               ),
               SizedBox(height: 12),
-              Text('• Low Pass Filter: Menghapus frekuensi tinggi.'),
+              Text('• Low Pass Filter: Removes high frequencies.'),
               // Text('• Band Pass Filter: Menyaring frekuensi tertentu.'),
-              Text('• Requantization: Menurunkan bit-depth audio.'),
-              Text('• Additive Noise: Menambahkan gangguan noise.'),
-              Text('• Resampling: Mengubah sampling rate audio.'),
+              Text('• Requantization: Reduces the bit-depth of the audio.'),
+              Text('• Additive Noise: Adds noise interference.'),
+              Text('• Resampling: Change the audio sampling rate.'),
               // Text('• Time Scale Modification: Mengubah durasi audio.'),
               // Text('• Linear Speed Change: Mempercepat atau memperlambat.'),
               // Text('• Pitch Shifting: Mengubah nada suara.'),
               // Text('• Equalizer: Mengatur kekuatan frekuensi.'),
               // Text('• Echo: Menambahkan gema pada audio.'),
-              Text('• MP3 Compression: Mengompres audio ke MP3.'),
+              Text('•MP3 Compression: Compress audio to MP3.'),
             ],
           ),
         ),
@@ -300,7 +300,7 @@ class _AttackPageState extends State<AttackPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child:
-                const Text('Tutup', style: TextStyle(color: Color(0xFF5E2A4D))),
+                const Text('Close', style: TextStyle(color: Color(0xFF5E2A4D))),
           ),
         ],
       ),

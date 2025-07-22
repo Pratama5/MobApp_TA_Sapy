@@ -226,10 +226,10 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
               showDialog(
                 context: context,
                 builder: (_) => AlertDialog(
-                  title: const Text("Penjelasan SNR "),
+                  title: const Text("SNR Explanation"),
                   content: const Text(
-                      "🔸 SNR (Signal-to-Noise Ratio): mengukur rasio kualitas sinyal terhadap noise. "
-                      "Semakin tinggi nilainya, semakin baik kualitas audio.\n\n"),
+                      "🔸 SNR (Signal-to-Noise Ratio): measure the signal to noise ratio. "
+                      "The higher the value, the better the audio quality.\n\n"),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
@@ -394,29 +394,61 @@ class _EmbeddingResultScreenState extends State<EmbeddingResultScreen> {
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () {
-                        Navigator.pushNamedAndRemoveUntil(context, '/',
-                            (route) => false); // Navigate to Home ('/')
+                        Navigator.pushNamed(
+                          context,
+                          '/attack',
+                          arguments: {
+                            'audioUrl': widget.audioUrl,
+                            'audioFilename': widget.audioFilename,
+                          },
+                        );
                       },
                       icon: const Icon(
-                        Icons.home_outlined, // Changed icon
+                        Icons.whatshot_outlined,
                         color: Colors.white,
                       ),
-                      label: const Text("Home",
+                      label: const Text("Add Attack",
                           style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
-                          backgroundColor: Color(
-                              0xFF5E2A4D), // Different color for distinction
+                          backgroundColor:
+                              const Color(0xFFD1512D), // Dark color
                           padding: const EdgeInsets.symmetric(
-                              vertical: 14, horizontal: 20), // Adjusted padding
+                              vertical: 14, horizontal: 20),
                           shape: RoundedRectangleBorder(
-                              borderRadius:
-                                  BorderRadius.circular(10)) // Added shape
-                          ),
+                              borderRadius: BorderRadius.circular(10))),
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Navigator.pushNamedAndRemoveUntil(
+                        context, '/', (route) => false);
+                  },
+                  icon: const Icon(
+                    Icons.home_outlined,
+                    color: Colors.white,
+                  ),
+                  label: const Text(
+                    "Home",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF5E2A4D),
+                    padding: const EdgeInsets.symmetric(
+                        vertical: 14, horizontal: 30),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),

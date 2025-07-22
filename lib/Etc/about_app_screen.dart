@@ -29,7 +29,7 @@ class AboutAppScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(child: Image.asset('assets/logo_wavemark.png', height: 150)),
+            Center(child: Image.asset('assets/logo_wavemark.png', height: 125)),
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
@@ -47,7 +47,7 @@ class AboutAppScreen extends StatelessWidget {
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),
-                  Text('Version 1.1.0'),
+                  Text('Version 1.2.1'),
                   SizedBox(height: 4),
                   Text(
                     'Update!',

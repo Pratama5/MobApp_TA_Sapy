@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:wavemark_app_v1/Etc/bottom_nav.dart';
 import 'package:url_launcher/url_launcher_string.dart';
 
-class ExtractionResultScreen extends StatelessWidget {
+class ExtractionDLResultScreen extends StatelessWidget {
   final String imageUrl;
   final String watermark;
   final int subband;
@@ -10,8 +10,9 @@ class ExtractionResultScreen extends StatelessWidget {
   final String alfass;
   final String actualBer;
   final String status;
+  final String predictedAttack;
 
-  const ExtractionResultScreen({
+  const ExtractionDLResultScreen({
     super.key,
     required this.imageUrl,
     required this.watermark,
@@ -20,6 +21,7 @@ class ExtractionResultScreen extends StatelessWidget {
     required this.alfass,
     required this.actualBer,
     required this.status,
+    required this.predictedAttack,
   });
 
   Widget _buildInfoRow(String title, String value) {
@@ -43,7 +45,7 @@ class ExtractionResultScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isDL = alfass == "DL-Auto";
-    print("Displaying ExtractionResultScreen with imageUrl: $imageUrl");
+    print("Displaying ExtractionDLResultScreen with imageUrl: $imageUrl");
 
     // --- Determine Payload based on Bit ---
     String payloadValue;
@@ -118,13 +120,13 @@ class ExtractionResultScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(15),
-            boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.grey)],
+            boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                "Extracted Watermark Image",
+                "Extracted With Deep Learning",
                 style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -213,6 +215,8 @@ class ExtractionResultScreen extends StatelessWidget {
               _buildInfoRow("Alpha", alfass),
               _buildInfoRow("BER", actualBer),
               _buildInfoRow("Payload", payloadValue),
+              const Divider(height: 20, thickness: 1),
+              _buildInfoRow("Predicted Attack", predictedAttack),
             ],
           ),
         ),

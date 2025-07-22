@@ -8,6 +8,7 @@ import 'package:path/path.dart' as path;
 import 'package:just_audio/just_audio.dart';
 import 'package:http/http.dart' as http;
 import 'package:wavemark_app_v1/Page/ExtractionResult.dart';
+import 'package:wavemark_app_v1/Page/ExtractionDLResult.dart';
 import 'package:wavemark_app_v1/Etc/app_settings.dart';
 import 'package:wavemark_app_v1/Etc/SettingsPage.dart';
 import 'package:wavemark_app_v1/Etc/QueueMonitor.dart';
@@ -283,19 +284,38 @@ class _ExtractionPageState extends State<ExtractionPage> {
         final String actualBer =
             (finalResult['ber'] as num?)?.toString() ?? "N/A";
 
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => ExtractionResultScreen(
-              imageUrl: imageUrl,
-              actualBer: actualBer,
-              watermark: _fetchedMethod ?? "N/A",
-              subband: _fetchedSubband ?? 0,
-              bit: _fetchedBit ?? 0,
-              alfass: _fetchedAlfass?.toString() ?? "N/A",
-              status: 'success',
+        if (isDLExtraction) {
+          final String predictedAttack =
+              finalResult['predicted_attack'] ?? 'Not available';
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => ExtractionDLResultScreen(
+                imageUrl: imageUrl,
+                actualBer: actualBer,
+                watermark: _fetchedMethod ?? "N/A",
+                subband: _fetchedSubband ?? 0,
+                bit: _fetchedBit ?? 0,
+                alfass: _fetchedAlfass?.toString() ?? "N/A",
+                status: 'success',
+                predictedAttack: predictedAttack,
+              ),
             ),
-          ),
-        );
+          );
+        } else {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (context) => ExtractionResultScreen(
+                imageUrl: imageUrl,
+                actualBer: actualBer,
+                watermark: _fetchedMethod ?? "N/A",
+                subband: _fetchedSubband ?? 0,
+                bit: _fetchedBit ?? 0,
+                alfass: _fetchedAlfass?.toString() ?? "N/A",
+                status: 'success',
+              ),
+            ),
+          );
+        }
       } else {
         _showConnectionErrorDialog(
             result['message'] ?? "An unknown server error occurred.", serverIp);

@@ -461,11 +461,11 @@ class _EmbeddingPageState extends State<EmbeddingPage> {
               showDialog(
                 context: context,
                 builder: (_) => AlertDialog(
-                  title: const Text("Penjelasan Parameter"),
+                  title: const Text("Parameters Explanation"),
                   content: const Text(
-                    "🔸 Subband: bagian frekuensi tempat watermark disisipkan.\n"
-                    "🔸 Bit: panjang bit watermark (misal 16-bit atau 32-bit).\n"
-                    "🔸 Alfass: kekuatan penyisipan watermark (semakin besar, semakin kuat namun bisa mempengaruhi kualitas audio).",
+                    "🔸 Subband: the frequency section where the watermark is inserted.\n"
+                    "🔸 Bit: watermark bit length (e.g. 16-bit or 32-bit).\n"
+                    "🔸 Alfass: watermark insertion strength (the bigger, the stronger but can affect audio quality).",
                   ),
                   actions: [
                     TextButton(
