@@ -334,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                     const Center(
                       child: Text(
-                        'WaveMark',
+                        'D-LAW',
                         style: TextStyle(
                           fontFamily: 'Archivo Black',
                           fontSize: 24,

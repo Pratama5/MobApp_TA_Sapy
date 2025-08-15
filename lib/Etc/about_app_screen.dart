@@ -29,7 +29,7 @@ class AboutAppScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Center(child: Image.asset('assets/logo_wavemark.png', height: 125)),
+            Center(child: Image.asset('assets/D-LAW.png', height: 150)),
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
@@ -43,7 +43,7 @@ class AboutAppScreen extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'WaveMark',
+                    'D-LAW',
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   SizedBox(height: 4),

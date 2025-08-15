@@ -122,7 +122,7 @@ class _LoginPageState extends State<LoginPage> {
                 width: 200,
                 decoration: const BoxDecoration(
                   image: DecorationImage(
-                    image: AssetImage('assets/logo_wavemark.png'),
+                    image: AssetImage('assets/D-LAW.png'),
                     fit: BoxFit.contain,
                   ),
                 ),
