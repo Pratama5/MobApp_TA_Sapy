@@ -2,7 +2,7 @@
 
 
     <application
-        android:label="Wavemark"
+        android:label="D-LAW"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
